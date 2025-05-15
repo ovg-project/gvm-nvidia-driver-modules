@@ -1016,6 +1016,17 @@ static NV_STATUS uvm_api_pageable_mem_access(UVM_PAGEABLE_MEM_ACCESS_PARAMS *par
     return NV_OK;
 }
 
+static NV_STATUS uvm_api_is_initialized(UVM_IS_INITIALIZED_PARAMS *params, struct file *filp)
+{
+    params->initialized = (uvm_fd_va_space(filp) != NULL);
+    return NV_OK;
+}
+
+static NV_STATUS uvm_api_ctrl_cmd_operate_kernel_group(UVM_CTRL_CMD_OPERATE_KERNEL_GROUP_PARAMS *params, struct file *filp)
+{
+    return NV_OK;
+}
+
 static long uvm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
     switch (cmd)
@@ -1068,6 +1079,8 @@ static long uvm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_TOOLS_GET_PROCESSOR_UUID_TABLE_V2,uvm_api_tools_get_processor_uuid_table_v2);
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_ALLOC_DEVICE_P2P,               uvm_api_alloc_device_p2p);
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_CLEAR_ALL_ACCESS_COUNTERS,      uvm_api_clear_all_access_counters);
+        UVM_ROUTE_CMD_STACK_NO_INIT_CHECK(UVM_IS_INITIALIZED,              uvm_api_is_initialized);
+        UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_CTRL_CMD_OPERATE_KERNEL_GROUP,  uvm_api_ctrl_cmd_operate_kernel_group);
     }
 
     // Try the test ioctls if none of the above matched

@@ -1121,6 +1121,24 @@ typedef struct
     NV_STATUS       rmStatus; // OUT
 } UVM_CLEAR_ALL_ACCESS_COUNTERS_PARAMS;
 
+#define UVM_IS_INITIALIZED                                            UVM_IOCTL_BASE(80)
+typedef struct
+{
+    NvBool          initialized; // OUT
+    NV_STATUS       rmStatus;    // OUT
+} UVM_IS_INITIALIZED_PARAMS;
+
+#define UVM_CTRL_CMD_OPERATE_KERNEL_GROUP                             UVM_IOCTL_BASE(81)
+typedef struct
+{
+    NvU32           cmd;         // IN
+    union {
+        NvU64       timesliceUs; // IN
+    } data;
+    NvU32           dataSize;    // IN
+    NV_STATUS       rmStatus;    // OUT
+} UVM_CTRL_CMD_OPERATE_KERNEL_GROUP_PARAMS;
+
 //
 // Temporary ioctls which should be removed before UVM 8 release
 // Number backwards from 2047 - highest custom ioctl function number
