@@ -190,7 +190,7 @@ struct uvm_user_channel_struct
     struct list_head list_node;
 
     // Node in the owning channel_group's channel_head list.
-    struct list_head chanel_node;
+    struct list_head channel_node;
 
     // Boolean which is set during the window between
     // nvUvmInterfaceBindChannelResources and nvUvmInterfaceStopChannel. This is
