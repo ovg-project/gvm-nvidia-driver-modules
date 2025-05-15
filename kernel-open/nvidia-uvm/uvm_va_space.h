@@ -115,6 +115,8 @@ struct uvm_gpu_va_space_struct
     // List of all uvm_user_channel_t's under this GPU VA space
     struct list_head registered_channels;
 
+    struct list_head registered_channel_groups;
+
     // List of all channel ranges under this GPU VA space. Used at channel
     // registration time to find shareable VA ranges without having to iterate
     // through all VA ranges in the VA space.

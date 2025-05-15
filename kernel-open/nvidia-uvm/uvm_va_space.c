@@ -1495,6 +1495,7 @@ static NV_STATUS create_gpu_va_space(uvm_gpu_t *gpu,
     gpu_va_space->gpu = gpu;
     gpu_va_space->va_space = va_space;
     INIT_LIST_HEAD(&gpu_va_space->registered_channels);
+    INIT_LIST_HEAD(&gpu_va_space->registered_channel_groups);
     INIT_LIST_HEAD(&gpu_va_space->channel_va_ranges);
     nv_kref_init(&gpu_va_space->kref);
 

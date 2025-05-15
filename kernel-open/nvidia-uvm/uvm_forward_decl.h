@@ -46,6 +46,7 @@ typedef struct uvm_mmu_mode_hal_struct uvm_mmu_mode_hal_t;
 
 typedef struct uvm_channel_manager_struct uvm_channel_manager_t;
 typedef struct uvm_channel_struct uvm_channel_t;
+typedef struct uvm_user_channel_group_struct uvm_user_channel_group_t;
 typedef struct uvm_user_channel_struct uvm_user_channel_t;
 typedef struct uvm_push_struct uvm_push_t;
 typedef struct uvm_push_info_struct uvm_push_info_t;
