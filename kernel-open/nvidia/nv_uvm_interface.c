@@ -1765,6 +1765,19 @@ NV_STATUS nvUvmInterfaceCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
 }
 EXPORT_SYMBOL(nvUvmInterfaceCtrlCmdOperateChannelGroup);
 
+NV_STATUS nvUvmInterfaceCtrlCmdOperateChannel(void *retainedChannel,
+                                              NvU32 cmd,
+                                              NvP64 pParams,
+                                              NvU32 dataSize)
+{
+    NV_STATUS status;
+    nvidia_stack_t *sp = nvUvmGetSafeStack();
+    status = rm_gpu_ops_ctrl_cmd_operate_channel(sp, retainedChannel, cmd, pParams, dataSize);
+    nvUvmFreeSafeStack(sp);
+    return status;
+}
+EXPORT_SYMBOL(nvUvmInterfaceCtrlCmdOperateChannel);
+
 #else // NV_UVM_ENABLE
 
 NV_STATUS nv_uvm_suspend(void)

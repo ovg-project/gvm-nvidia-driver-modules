@@ -1048,6 +1048,28 @@ static NV_STATUS uvm_api_ctrl_cmd_operate_channel_group(UVM_CTRL_CMD_OPERATE_CHA
     return NV_OK;
 }
 
+static NV_STATUS uvm_api_ctrl_cmd_operate_channel(UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS *params, struct file *filp)
+{
+    uvm_va_space_t *va_space = uvm_va_space_get(filp);
+    uvm_gpu_va_space_t *gpu_va_space;
+    uvm_user_channel_t *user_channel;
+    NV_STATUS status;
+
+    for_each_gpu_va_space(gpu_va_space, va_space) {
+        list_for_each_entry(user_channel, &gpu_va_space->registered_channels, list_node) {
+            status = nvUvmInterfaceCtrlCmdOperateChannel(user_channel->rm_retained_channel,
+                                                     params->cmd,
+                                                     &params->data,
+                                                     params->dataSize);
+            if (status != NV_OK) {
+                return status;
+            }
+        }
+    }
+
+    return NV_OK;
+}
+
 static long uvm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
     switch (cmd)
@@ -1102,6 +1124,7 @@ static long uvm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_CLEAR_ALL_ACCESS_COUNTERS,      uvm_api_clear_all_access_counters);
         UVM_ROUTE_CMD_STACK_NO_INIT_CHECK(UVM_IS_INITIALIZED,              uvm_api_is_initialized);
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP,  uvm_api_ctrl_cmd_operate_channel_group);
+        UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_CTRL_CMD_OPERATE_CHANNEL,        uvm_api_ctrl_cmd_operate_channel);
     }
 
     // Try the test ioctls if none of the above matched

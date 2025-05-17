@@ -1876,4 +1876,9 @@ NV_STATUS nvUvmInterfaceCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
                                                    NvU32 cmd,
                                                    NvP64 pParams,
                                                    NvU32 dataSize);
+
+NV_STATUS nvUvmInterfaceCtrlCmdOperateChannel(void *retainedChannel,
+                                              NvU32 cmd,
+                                              NvP64 pParams,
+                                              NvU32 dataSize);
 #endif // _NV_UVM_INTERFACE_H_

@@ -1146,14 +1146,24 @@ typedef struct
             NvBool bSkipSubmit;           // IN
             NvBool bSkipEnable;           // IN
         } NVA06F_CTRL_GPFIFO_SCHEDULE_PARAMS;
+    } data;
+    NvU32           dataSize;             // IN
+    NV_STATUS       rmStatus;             // OUT
+} UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS;
+
+#define UVM_CTRL_CMD_OPERATE_CHANNEL                                   UVM_IOCTL_BASE(82)
+typedef struct
+{
+    NvU32               cmd;                    // IN
+    union {
         struct {
             NvBool bForceRestart;
             NvBool bBypassWait;
         } NVA06F_CTRL_RESTART_RUNLIST_PARAMS;
     } data;
-    NvU32           dataSize;             // IN
-    NV_STATUS       rmStatus;             // OUT
-} UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS;
+    NvU32               dataSize;               // IN
+    NV_STATUS           rmStatus;               // OUT
+} UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS;
 
 //
 // Temporary ioctls which should be removed before UVM 8 release

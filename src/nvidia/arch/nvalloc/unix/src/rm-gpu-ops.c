@@ -1057,3 +1057,17 @@ NV_STATUS  NV_API_CALL rm_gpu_ops_ctrl_cmd_operate_channel_group(nvidia_stack_t 
     NV_EXIT_RM_RUNTIME(sp,fp);
     return rmStatus;
 }
+
+NV_STATUS  NV_API_CALL rm_gpu_ops_ctrl_cmd_operate_channel(nvidia_stack_t *sp,
+                                                           void *retainedChannel,
+                                                           NvU32 cmd,
+                                                           NvP64 pParams,
+                                                           NvU32 dataSize)
+{
+    NV_STATUS rmStatus;
+    void *fp;
+    NV_ENTER_RM_RUNTIME(sp,fp);
+    rmStatus = NV_OK;
+    NV_EXIT_RM_RUNTIME(sp,fp);
+    return rmStatus;
+}
