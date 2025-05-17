@@ -1131,12 +1131,19 @@ typedef struct
 #define UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP                             UVM_IOCTL_BASE(81)
 typedef struct
 {
-    NvU32           cmd;         // IN
+    NvU32           cmd;                  // IN
     union {
-        NvU64       timesliceUs; // IN
+        struct {
+            NvU64       timesliceUs;      // IN
+        } NVA06C_CTRL_TIMESLICE_PARAMS;
+        struct {
+            NvBool bWait;                 // IN
+            NvBool bManualTimeout;        // IN
+            NvU32  timeoutUs;             // IN
+        } NVA06C_CTRL_CMD_PREEMPT;
     } data;
-    NvU32           dataSize;    // IN
-    NV_STATUS       rmStatus;    // OUT
+    NvU32           dataSize;             // IN
+    NV_STATUS       rmStatus;             // OUT
 } UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS;
 
 //
