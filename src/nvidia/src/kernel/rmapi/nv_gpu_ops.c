@@ -11428,3 +11428,58 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
 done:
     return status;
 }
+
+NV_STATUS nvGpuOpsCtrlCmdOperateChannel(gpuRetainedChannel *retainedChannel,
+                                        NvU32 cmd,
+                                        NvP64 pParams,
+                                        NvU32 dataSize)
+{
+    NV_STATUS status = NV_OK;
+    nvGpuOpsLockSet acquiredLocks;
+    THREAD_STATE_NODE threadState;
+    KernelChannel *pKernelChannel = NULL;
+    RsResourceRef *pResourceRef;
+    RM_API *pRmApi = rmapiGetInterface(RMAPI_GPU_LOCK_INTERNAL);
+
+    threadStateInit(&threadState, THREAD_STATE_FLAGS_NONE);
+
+    if (_nvGpuOpsLocksAcquireAll(RMAPI_LOCK_FLAGS_READ,
+                                 retainedChannel->session->handle,
+                                 NULL,
+                                 &acquiredLocks) != NV_OK)
+    {
+        threadStateFree(&threadState, THREAD_STATE_FLAGS_NONE);
+        return status;
+    }
+
+    status = nvGpuOpsGetChannelData(retainedChannel, &pKernelChannel);
+    if (status != NV_OK)
+    {
+        _nvGpuOpsLocksRelease(&acquiredLocks);
+        threadStateFree(&threadState, THREAD_STATE_FLAGS_NONE);
+        return status;
+    }
+
+    // Verify this channel handle is still valid
+    status = serverutilGetResourceRef(RES_GET_CLIENT_HANDLE(pKernelChannel), RES_GET_HANDLE(pKernelChannel), &pResourceRef);
+    if (status != NV_OK)
+    {
+        NV_ASSERT(0);
+        _nvGpuOpsLocksRelease(&acquiredLocks);
+        threadStateFree(&threadState, THREAD_STATE_FLAGS_NONE);
+        return status;
+    }
+
+    NV_ASSERT_OK(
+        pRmApi->Control(pRmApi,
+                        RES_GET_CLIENT_HANDLE(pKernelChannel),
+                        RES_GET_HANDLE(pKernelChannel),
+                        cmd,
+                        pParams,
+                        dataSize));
+
+    _nvGpuOpsLocksRelease(&acquiredLocks);
+    threadStateFree(&threadState, THREAD_STATE_FLAGS_NONE);
+
+    return status;
+}

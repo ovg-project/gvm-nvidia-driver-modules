@@ -343,5 +343,9 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
                                              NvU32 cmd,
                                              NvP64 pParams,
                                              NvU32 dataSize);
+NV_STATUS nvGpuOpsCtrlCmdOperateChannel(gpuRetainedChannel *retainedChannel,
+                                        NvU32 cmd,
+                                        NvP64 pParams,
+                                        NvU32 dataSize);
 
 #endif /* _NV_GPU_OPS_H_*/
