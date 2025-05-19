@@ -1146,9 +1146,9 @@ typedef struct
             NvBool bSkipSubmit;           // IN
             NvBool bSkipEnable;           // IN
         } NVA06F_CTRL_GPFIFO_SCHEDULE_PARAMS;
-		struct {
-		    NvU32 tsgInterleaveLevel;     // IN
-		} NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS;
+        struct {
+            NvU32 tsgInterleaveLevel;     // IN
+        } NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS;
     } data;
     NvU32           dataSize;             // IN
     NV_STATUS       rmStatus;             // OUT
@@ -1166,6 +1166,9 @@ typedef struct
         struct {
             NvBool bImmediate;
         } NVA06F_CTRL_STOP_CHANNEL_PARAMS;
+        struct {
+            NvU32 engineType;
+        } NVA06F_CTRL_BIND_PARAMS;
     } data;
     NvU32               dataSize;               // IN
     NV_STATUS           rmStatus;               // OUT

@@ -11478,6 +11478,10 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannel(gpuRetainedChannel *retainedChannel,
         return status;
     }
 
+    if (cmd == NVA06F_CTRL_CMD_BIND) {
+        ((NVA06F_CTRL_BIND_PARAMS *)pParams)->engineType = retainedChannel->hwChannelEngineType;
+    }
+
     NV_ASSERT_OK(
         pRmApi->Control(pRmApi,
                         RES_GET_CLIENT_HANDLE(pKernelChannel),
