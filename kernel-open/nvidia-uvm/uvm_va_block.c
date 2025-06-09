@@ -98,6 +98,40 @@ static size_t block_gpu_chunk_index(uvm_va_block_t *block,
                                     uvm_page_index_t page_index,
                                     uvm_chunk_size_t *out_chunk_size);
 
+static size_t va_space_calculate_rss(uvm_va_space_t *va_space, uvm_gpu_t *gpu) {
+    uvm_va_range_t *va_range;
+    uvm_va_range_managed_t *managed_range;
+    uvm_va_block_t *va_block;
+    size_t va_range_num_blocks;
+    size_t index;
+    uvm_va_block_gpu_state_t *gpu_state;
+    size_t rss = 0;
+    bool locked = uvm_check_rwsem_locked_read(&va_space->lock);
+
+    if (!locked) {
+        uvm_down_read(&va_space->lock);
+    }
+
+    uvm_for_each_va_range(va_range, va_space) {
+        managed_range = uvm_va_range_to_managed_or_null(va_range);
+        if (managed_range) {
+            va_range_num_blocks = uvm_va_range_num_blocks(managed_range);
+            for (index = 0; index < va_range_num_blocks; ++index) {
+                va_block = uvm_va_range_block(managed_range, index);
+                if (va_block) {
+                    gpu_state = uvm_va_block_gpu_state_get(va_block, gpu->id);
+                    rss += uvm_page_mask_weight(&gpu_state->resident) * 4096;
+                }
+            }
+        }
+    }
+
+    if (!locked) {
+        uvm_up_read(&va_space->lock);
+    }
+
+    return rss;
+}
 uvm_va_space_t *uvm_va_block_get_va_space_maybe_dead(uvm_va_block_t *va_block)
 {
 #if UVM_IS_CONFIG_HMM()
