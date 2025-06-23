@@ -139,15 +139,13 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
     uvm_va_range_t *va_range;
     uvm_va_range_managed_t *managed_range;
     uvm_va_block_t *va_block;
-    uvm_va_block_gpu_state_t *gpu_state;
-    struct mm_struct *mm;
     size_t va_range_num_blocks;
     size_t index;
-    size_t evicted_size = 0;
+    size_t evicted_bytes;
+    size_t total_evicted_bytes = 0;
     NV_STATUS status = NV_OK;
 
     uvm_assert_rwsem_locked_write(&va_space->lock);
-    mm = uvm_va_space_mm_retain_lock(va_space);
 
     uvm_for_each_va_range(va_range, va_space) {
         managed_range = uvm_va_range_to_managed_or_null(va_range);
@@ -156,10 +154,9 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
             for (index = 0; index < va_range_num_blocks; ++index) {
                 va_block = uvm_va_range_block(managed_range, index);
                 if (va_block) {
-                    gpu_state = uvm_va_block_gpu_state_get(va_block, gpu->id);
-                    evicted_size += uvm_page_mask_weight(&gpu_state->resident) * 4096;
-                    status = block_evict_pages_from_gpu(va_block, gpu, mm);
-                    if (status != NV_OK || evicted_size >= target_size) {
+                    status = uvm_va_block_evict_chunks(va_block, gpu, NULL, NULL, &evicted_bytes);
+                    total_evicted_bytes += evicted_bytes;
+                    if (status != NV_OK || total_evicted_bytes >= target_size) {
                         goto exit;
                     }
                 }
@@ -168,7 +165,6 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
     }
 
 exit:
-    uvm_va_space_mm_release_unlock(va_space, mm);
     return status;
 }
 
@@ -2169,6 +2165,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
                                        uvm_gpu_chunk_t **out_gpu_chunk)
 {
     NV_STATUS status = NV_OK;
+    uvm_va_space_t *va_space = uvm_va_block_get_va_space_maybe_dead(block);
     uvm_gpu_chunk_t *gpu_chunk;
 
     // First try getting a free chunk from previously-made allocations.
@@ -2206,7 +2203,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
     }
 
     *out_gpu_chunk = gpu_chunk;
-    return NV_OK;
+    return try_charge_gpu_memcg(va_space);
 }
 
 static bool block_gpu_has_page_tables(uvm_va_block_t *block, uvm_gpu_t *gpu)
@@ -13104,7 +13101,8 @@ static void block_add_eviction_mappings_entry(void *args)
 NV_STATUS uvm_va_block_evict_chunks(uvm_va_block_t *va_block,
                                     uvm_gpu_t *gpu,
                                     uvm_gpu_chunk_t *root_chunk,
-                                    uvm_tracker_t *tracker)
+                                    uvm_tracker_t *tracker,
+                                    size_t *evicted_bytes)
 {
     NV_STATUS status = NV_OK;
     NvU32 i;
@@ -13165,7 +13163,7 @@ NV_STATUS uvm_va_block_evict_chunks(uvm_va_block_t *va_block,
 
         if (!gpu_state->chunks[i])
             continue;
-        if (!uvm_gpu_chunk_same_root(gpu_state->chunks[i], root_chunk))
+        if (root_chunk != NULL && !uvm_gpu_chunk_same_root(gpu_state->chunks[i], root_chunk))
             continue;
 
         if (uvm_va_block_is_hmm(va_block)) {
@@ -13211,6 +13209,8 @@ NV_STATUS uvm_va_block_evict_chunks(uvm_va_block_t *va_block,
     if (status != NV_OK)
         goto out;
 
+    *evicted_bytes = uvm_page_mask_weight(pages_to_evict) * 4096;
+
     // VA space lock may not be held and hence we cannot reestablish any
     // mappings here and need to defer it to a work queue.
     //
@@ -13245,19 +13245,22 @@ NV_STATUS uvm_va_block_evict_chunks(uvm_va_block_t *va_block,
         }
     }
 
-    status = uvm_tracker_add_tracker_safe(tracker, &va_block->tracker);
-    if (status != NV_OK)
-        goto out;
+    if (tracker != NULL) {
+        status = uvm_tracker_add_tracker_safe(tracker, &va_block->tracker);
+        if (status != NV_OK)
+            goto out;
+    }
 
     for (i = 0; i < num_gpu_chunks; ++i) {
         uvm_gpu_chunk_t *chunk = gpu_state->chunks[i];
 
         if (!chunk)
             continue;
-        if (!uvm_gpu_chunk_same_root(chunk, root_chunk))
+        if (root_chunk != NULL && !uvm_gpu_chunk_same_root(chunk, root_chunk))
             continue;
 
-        uvm_mmu_chunk_unmap(chunk, tracker);
+        if (tracker != NULL)
+            uvm_mmu_chunk_unmap(chunk, tracker);
 
         uvm_pmm_gpu_mark_chunk_evicted(&gpu->pmm, gpu_state->chunks[i]);
         gpu_state->chunks[i] = NULL;
