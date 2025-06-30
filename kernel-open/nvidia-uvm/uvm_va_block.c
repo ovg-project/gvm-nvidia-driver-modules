@@ -122,7 +122,9 @@ static size_t va_space_calculate_rss(uvm_va_space_t *va_space, uvm_gpu_t *gpu) {
                 va_block = uvm_va_range_block(managed_range, index);
                 if (va_block) {
                     gpu_state = uvm_va_block_gpu_state_get(va_block, gpu->id);
-                    rss += uvm_page_mask_weight(&gpu_state->resident) * 4096;
+                    if (gpu_state) {
+                        rss += uvm_page_mask_weight(&gpu_state->resident) * 4096;
+                    }
                 }
             }
         }
@@ -2181,7 +2183,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
             status = NV_ERR_NO_MEMORY;
         }
         else if (rss > gmemcghigh) {
-            // evict_flags |= UVM_PMM_ALLOC_FLAGS_EVICT_FORCE;
+            evict_flags |= UVM_PMM_ALLOC_FLAGS_EVICT_FORCE;
             status = NV_ERR_NO_MEMORY;
         }
         else {
