@@ -311,7 +311,6 @@ static NV_STATUS alloc_root_chunk(uvm_pmm_gpu_t *pmm,
                                   uvm_gpu_chunk_t **chunk);
 static void free_root_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_root_chunk_t *root_chunk, free_root_chunk_mode_t free_mode);
 static NV_STATUS split_gpu_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
-static void free_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
 static void free_chunk_with_merges(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
 static bool free_next_available_root_chunk(uvm_pmm_gpu_t *pmm, uvm_pmm_gpu_memory_type_t type);
 static struct list_head *find_free_list(uvm_pmm_gpu_t *pmm,
@@ -2367,7 +2366,7 @@ static void free_chunk_with_merges(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk)
 // Mark the chunk as free and put it on the free list. If this is a suballocated
 // chunk and the parent has no more allocated chunks, the parent is freed and so
 // on up the tree.
-static void free_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk)
+void free_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk)
 {
     bool try_free = true;
     const bool is_root = chunk_is_root_chunk(chunk);

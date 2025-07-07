@@ -558,6 +558,8 @@ void uvm_pmm_gpu_mark_root_chunk_used(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk
 // Mark an allocated user chunk as unused
 void uvm_pmm_gpu_mark_root_chunk_unused(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
 
+void free_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
+
 static bool uvm_gpu_chunk_same_root(uvm_gpu_chunk_t *chunk1, uvm_gpu_chunk_t *chunk2)
 {
     return UVM_ALIGN_DOWN(chunk1->address, UVM_CHUNK_SIZE_MAX) == UVM_ALIGN_DOWN(chunk2->address, UVM_CHUNK_SIZE_MAX);
