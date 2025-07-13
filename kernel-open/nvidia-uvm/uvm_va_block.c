@@ -206,7 +206,7 @@ size_t uvm_linux_api_get_gpu_rss(int fd) {
     size_t current_rss;
 
     if (!f.file)
-        return -EBADF;
+        return 0;
 
     va_space = uvm_fd_va_space(f.file);
     if (!va_space)
@@ -225,11 +225,11 @@ out:
     fdput(f);
     return max_rss;
 }
-EXPORT_SYMBOL(uvm_linux_api_get_gpu_rss);
+EXPORT_SYMBOL_GPL(uvm_linux_api_get_gpu_rss);
 
 int uvm_linux_api_charge_gpu_memory_high(int fd, u64 current_value, u64 high_value) {
     struct fd f = fdget(fd);
-	int error = 0;
+    int error = 0;
     uvm_gpu_id_t id;
     uvm_gpu_t *gpu;
     uvm_va_space_t *va_space;
@@ -258,7 +258,29 @@ out:
     fdput(f);
     return error;
 }
-EXPORT_SYMBOL(uvm_linux_api_charge_gpu_memory_high);
+EXPORT_SYMBOL_GPL(uvm_linux_api_charge_gpu_memory_high);
+
+int uvm_try_charge_gpu_memogy_cgroup(uvm_va_block_t *block, size_t size) {
+    uvm_va_space_t *va_space;
+    struct mm_struct *mm;
+    struct task_struct *task;
+    if (!block)
+        return -EINVAL;
+
+    va_space = uvm_va_block_get_va_space_maybe_dead(block);
+    if (!va_space)
+        return -EINVAL;
+
+    mm = va_space->va_space_mm.mm;
+    if (!mm)
+        return -EINVAL;
+
+    task = mm->owner;
+    if (!task)
+        return -EINVAL;
+
+    return try_charge_gpu_memcg(task->active_gpucg, size);
+}
 
 uvm_va_space_t *uvm_va_block_get_va_space_maybe_dead(uvm_va_block_t *va_block)
 {
@@ -2263,15 +2285,18 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
             }
 
             uvm_mutex_lock(&block->lock);
-            return status;
+            goto out;
         }
         else if (status != NV_OK) {
-            return status;
+            goto out;
         }
     }
 
     *out_gpu_chunk = gpu_chunk;
-    return NV_OK;
+out:
+    if (status == NV_OK)
+        uvm_try_charge_gpu_memogy_cgroup(block, size);
+    return status;
 }
 
 static bool block_gpu_has_page_tables(uvm_va_block_t *block, uvm_gpu_t *gpu)

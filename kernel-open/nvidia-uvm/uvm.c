@@ -1048,7 +1048,7 @@ int uvm_linux_api_get_task_uvmfd(struct task_struct *task) {
 
     return uvmfd;
 }
-EXPORT_SYMBOL(uvm_linux_api_get_task_uvmfd);
+EXPORT_SYMBOL_GPL(uvm_linux_api_get_task_uvmfd);
 
 static NV_STATUS uvm_api_ctrl_cmd_operate_channel_group(UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS *params, struct file *filp)
 {

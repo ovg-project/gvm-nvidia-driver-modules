@@ -678,6 +678,8 @@ int uvm_linux_api_charge_gpu_memory_high(int fd, u64 current_value, u64 high_val
 
 size_t uvm_linux_api_get_gpu_rss(int fd);
 
+int uvm_try_charge_gpu_memogy_cgroup(uvm_va_block_t *block, size_t size);
+
 // Return the va_space pointer of the given block or NULL if the block is dead.
 // Locking: This can be called while holding either the block lock or just the
 // VA space lock in read mode, since it can only change when the VA space lock

@@ -1332,6 +1332,7 @@ static NV_STATUS evict_root_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_root_chunk_t *root
         status = evict_root_chunk_from_va_block(pmm, root_chunk, evict.va_block_to_evict_from);
         if (status != NV_OK)
             goto error;
+        uvm_try_charge_gpu_memogy_cgroup(evict.va_block_to_evict_from, uvm_gpu_chunk_get_size(&(root_chunk->chunk)));
     }
 
     // All of the leaf chunks should be pinned now, merge them all back into a
@@ -2377,6 +2378,7 @@ void free_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk)
 
     UVM_ASSERT(check_chunk(pmm, chunk));
 
+    uvm_try_charge_gpu_memogy_cgroup(chunk->va_block, uvm_gpu_chunk_get_size(chunk));
     if (try_chunk_free(pmm, chunk)) {
         try_free = is_root;
     }

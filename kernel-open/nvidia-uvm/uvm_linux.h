@@ -99,6 +99,8 @@
 #include <asm/dma-mapping.h>
 #endif
 
+#include <linux/gpucontrol.h>
+
 #include "nv-kthread-q.h"
 
     #if defined(NV_CPUMASK_OF_NODE_PRESENT)
