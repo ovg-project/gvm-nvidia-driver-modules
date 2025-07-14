@@ -1075,7 +1075,6 @@ int uvm_linux_api_preempt_task(struct task_struct *task, int fd) {
         goto out;
     }
 
-    printk(KERN_INFO "%s: called\n", __FUNCTION__);
     if (uvm_api_ctrl_cmd_operate_channel(&params, filep) != NV_OK) {
         error = -EINVAL;
         goto out;

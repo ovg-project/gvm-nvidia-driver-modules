@@ -185,7 +185,6 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
                         }
                     }
                     uvm_mutex_unlock(&va_block->lock);
-                    printk(KERN_INFO "Total evicted bytes 0x%llx, target size is 0x%llx\n", total_evicted_bytes, target_size);
                     if (status != NV_OK || total_evicted_bytes >= target_size) {
                         goto exit;
                     }
@@ -212,8 +211,6 @@ size_t uvm_linux_api_get_gpu_rss(struct task_struct *task, int fd) {
 
     va_space = uvm_fd_va_space(filep);
     if (!va_space)
-        printk(KERN_INFO "Uvmfd %d have no va_space init\n", fd);
-    if (!va_space)
         goto out;
 
     uvm_down_read(&va_space->lock);
@@ -222,7 +219,6 @@ size_t uvm_linux_api_get_gpu_rss(struct task_struct *task, int fd) {
         if (!gpu)
             continue;
         current_rss = va_space_calculate_rss(va_space, gpu);
-        printk(KERN_INFO "current_rss is 0x%lx, gpu ptr is 0x%llx\n", current_rss, (u64)gpu);
         if (current_rss > max_rss)
             max_rss = current_rss;
     }
@@ -247,7 +243,6 @@ int uvm_linux_api_charge_gpu_memory_high(struct task_struct *task, int fd, u64 c
     if (!filep)
         return -EBADF;
 
-    printk(KERN_INFO "%s: charging current value 0x%llx to target value 0x%llx\n", __FUNCTION__, current_value, high_value);
     va_space = uvm_fd_va_space(filep);
     if (!va_space)
         goto out;
