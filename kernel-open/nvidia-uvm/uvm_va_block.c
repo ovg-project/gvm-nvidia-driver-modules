@@ -171,7 +171,8 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
                     if (gpu_state) {
                         status = block_evict_pages_from_gpu(va_block, gpu, mm, false);
                         if (status == NV_OK) {
-                            total_evicted_bytes += uvm_page_mask_weight(&gpu_state->resident) * 4096;
+                            // total_evicted_bytes += uvm_page_mask_weight(&gpu_state->resident) * 4096;
+                            total_evicted_bytes += uvm_va_block_size(va_block);
                             va_block_num_chunks = block_num_gpu_chunks(va_block, gpu);
                             for (chunk_index = 0; chunk_index < va_block_num_chunks; ++chunk_index) {
                                 if (gpu_state->chunks[chunk_index] &&
@@ -184,6 +185,7 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
                         }
                     }
                     uvm_mutex_unlock(&va_block->lock);
+                    printk(KERN_INFO "Total evicted bytes 0x%llx, target size is 0x%llx\n", total_evicted_bytes, target_size);
                     if (status != NV_OK || total_evicted_bytes >= target_size) {
                         goto exit;
                     }
@@ -245,6 +247,7 @@ int uvm_linux_api_charge_gpu_memory_high(struct task_struct *task, int fd, u64 c
     if (!filep)
         return -EBADF;
 
+    printk(KERN_INFO "%s: charging current value 0x%llx to target value 0x%llx\n", __FUNCTION__, current_value, high_value);
     va_space = uvm_fd_va_space(filep);
     if (!va_space)
         goto out;

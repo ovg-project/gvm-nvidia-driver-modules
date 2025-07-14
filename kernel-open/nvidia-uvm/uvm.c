@@ -50,6 +50,9 @@ static dev_t g_uvm_base_dev;
 static struct cdev g_uvm_cdev;
 static const struct file_operations uvm_fops;
 
+static NV_STATUS uvm_api_ctrl_cmd_operate_channel_group(UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS *params, struct file *filp);
+static NV_STATUS uvm_api_ctrl_cmd_operate_channel(UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS *params, struct file *filp);
+
 bool uvm_file_is_nvidia_uvm(struct file *filp)
 {
     return (filp != NULL) && (filp->f_op == &uvm_fops);
@@ -1049,6 +1052,90 @@ int uvm_linux_api_get_task_uvmfd(struct task_struct *task) {
     return uvmfd;
 }
 EXPORT_SYMBOL_GPL(uvm_linux_api_get_task_uvmfd);
+
+int uvm_linux_api_preempt_task(struct task_struct *task, int fd) {
+    struct file *filep = fget_task(task, fd);
+    UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS params = {
+        .cmd = NVA06F_CTRL_CMD_STOP_CHANNEL,
+        .data = {
+            .NVA06F_CTRL_STOP_CHANNEL_PARAMS = {
+                .bImmediate = true
+            }
+        },
+        .dataSize = sizeof(NVA06F_CTRL_STOP_CHANNEL_PARAMS),
+        .rmStatus = 0
+    };
+    int error = 0;
+
+    if (!filep)
+        return 0;
+
+    if (uvm_fd_va_space(filep) == NULL) {
+        error = -ENOENT;
+        goto out;
+    }
+
+    printk(KERN_INFO "%s: called\n", __FUNCTION__);
+    if (uvm_api_ctrl_cmd_operate_channel(&params, filep) != NV_OK) {
+        error = -EINVAL;
+        goto out;
+    }
+
+out:
+    fput(filep);
+    return error;
+}
+EXPORT_SYMBOL_GPL(uvm_linux_api_preempt_task);
+
+int uvm_linux_api_reschedule_task(struct task_struct *task, int fd) {
+    struct file *filep = fget_task(task, fd);
+    UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS bind_params = {
+        .cmd = NVA06F_CTRL_CMD_BIND,
+        .data = {
+            .NVA06F_CTRL_BIND_PARAMS = {
+                // Will be filled in kernel module using restored type of engine
+                .engineType = 0
+            }
+        },
+        .dataSize = sizeof(NVA06F_CTRL_BIND_PARAMS),
+        .rmStatus = 0
+    };
+    UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS schedule_params = {
+        .cmd = NVA06F_CTRL_CMD_GPFIFO_SCHEDULE,
+        .data = {
+            .NVA06F_CTRL_GPFIFO_SCHEDULE_PARAMS = {
+                .bEnable = true,
+                .bSkipSubmit = false,
+                .bSkipEnable = false
+            }
+        },
+        .dataSize = sizeof(NVA06F_CTRL_GPFIFO_SCHEDULE_PARAMS),
+        .rmStatus = 0
+    };
+    int error = 0;
+
+    if (!filep)
+        return 0;
+
+    if (uvm_fd_va_space(filep) == NULL) {
+        error = -ENOENT;
+        goto out;
+    }
+
+    if (uvm_api_ctrl_cmd_operate_channel(&bind_params, filep) != NV_OK) {
+        error = -EINVAL;
+        goto out;
+    }
+    if (uvm_api_ctrl_cmd_operate_channel(&schedule_params, filep) != NV_OK) {
+        error = -EINVAL;
+        goto out;
+    }
+
+out:
+    fput(filep);
+    return error;
+}
+EXPORT_SYMBOL_GPL(uvm_linux_api_reschedule_task);
 
 static NV_STATUS uvm_api_ctrl_cmd_operate_channel_group(UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS *params, struct file *filp)
 {
