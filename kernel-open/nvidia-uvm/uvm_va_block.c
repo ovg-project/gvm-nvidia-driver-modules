@@ -237,11 +237,11 @@ int uvm_linux_api_charge_gpu_memory_high(struct task_struct *task, int fd, u64 c
     uvm_gpu_t *gpu;
     uvm_va_space_t *va_space;
 
-    if (current_value <= high_value)
-        return 0;
-
     if (!filep)
         return -EBADF;
+
+    if (current_value <= high_value)
+        goto out;
 
     va_space = uvm_fd_va_space(filep);
     if (!va_space)
