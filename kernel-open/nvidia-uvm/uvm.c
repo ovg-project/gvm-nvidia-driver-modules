@@ -1029,27 +1029,29 @@ static NV_STATUS uvm_api_is_initialized(UVM_IS_INITIALIZED_PARAMS *params, struc
     return NV_OK;
 }
 
-int uvm_linux_api_get_task_uvmfd(struct task_struct *task) {
+int uvm_linux_api_get_task_uvmfd(struct task_struct *task, int *uvmfds, size_t size) {
     int fd;
     int maxfd;
     struct file *filep;
     struct files_struct *filesp = task->files;
-    int uvmfd = -1;
+    int task_num_uvmfds = 0;
 
     if (!filesp)
-        return uvmfd;
+        return -ENODATA;
     maxfd = filesp->fdt->max_fds;
 
-    for (fd = 0; fd < maxfd && uvmfd == -1; ++fd) {
+    for (fd = 0; fd < maxfd && task_num_uvmfds < size; ++fd) {
         filep = fget_task(task, fd);
         if (!filep)
             continue;
-        if (uvm_fd_va_space(filep) != NULL)
-            uvmfd = fd;
+        if (uvm_fd_va_space(filep) != NULL) {
+            uvmfds[task_num_uvmfds] = fd;
+            task_num_uvmfds += 1;
+        }
         fput(filep);
     }
 
-    return uvmfd;
+    return task_num_uvmfds;
 }
 EXPORT_SYMBOL_GPL(uvm_linux_api_get_task_uvmfd);
 

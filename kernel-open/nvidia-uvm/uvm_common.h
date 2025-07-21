@@ -345,7 +345,7 @@ typedef struct
     __ret;                                \
 })
 
-int uvm_linux_api_get_task_uvmfd(struct task_struct *task);
+int uvm_linux_api_get_task_uvmfd(struct task_struct *task, int *uvmfds, size_t size);
 
 int uvm_linux_api_preempt_task(struct task_struct *task, int fd);
 

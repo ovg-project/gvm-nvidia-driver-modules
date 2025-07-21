@@ -2254,7 +2254,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
 {
     NV_STATUS status = NV_OK;
     uvm_va_space_t *va_space = uvm_va_block_get_va_space_maybe_dead(block);
-    size_t rss = va_space_calculate_rss(va_space, gpu);
+    size_t rss = 0;//va_space_calculate_rss(va_space, gpu);
     size_t gmemcghigh = va_space->gmemcghigh[uvm_id_gpu_index(gpu->id)];
     uvm_pmm_alloc_flags_t evict_flags = UVM_PMM_ALLOC_FLAGS_EVICT;
     uvm_gpu_chunk_t *gpu_chunk;
