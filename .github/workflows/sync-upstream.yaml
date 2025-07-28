@@ -1,0 +1,36 @@
+name: Sync Upstream to upstream-main
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # daily at 2 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream ${{ secrets.UPSTREAM_REPO }}
+
+      - name: Fetch and rebase upstream-main
+        run: |
+          git fetch upstream
+          git fetch upstream +refs/tags/*:refs/tags/*
+          git checkout upstream-main || git checkout -b upstream-main
+          git pull --rebase upstream main
+          git push origin upstream-main
+          git push origin +refs/tags/*:refs/tags/*
