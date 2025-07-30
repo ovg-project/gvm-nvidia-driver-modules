@@ -36,9 +36,11 @@ static int gvm_process_memory_high_show(struct seq_file *m, void *data)
 {
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
 
-    // Should read from the metadata datastructure in target pid's uvm_va_space.
+    // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
     // Return dummy value based on PID and GPU ID for demonstration
     size_t dummy_limit = (gpu_debugfs->pid * 1000) + (gpu_debugfs->gpu_id);
+    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_limit);
 
     seq_printf(m, "%zu\n", dummy_limit);
     return 0;
@@ -67,8 +69,8 @@ static ssize_t gvm_process_memory_high_write(struct file *file, const char __use
         return -EINVAL;
 
     // gvm_set_gpu_memory_limit(gpu_debugfs->pid, gpu_debugfs->gpu_id, limit);
-    pr_err("gvm_process_memory_high_write: pid=%d, gpu=%d, limit=%zu\n", gpu_debugfs->pid,
-           gpu_debugfs->gpu_id, limit);
+    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            limit);
     return count;
 }
 
@@ -77,15 +79,32 @@ static int gvm_process_memory_current_show(struct seq_file *m, void *data)
 {
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
 
-    // Should read from the metadata datastructure in target pid's uvm_va_space.
+    // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
     // Return dummy value based on PID and GPU ID for demonstration
     size_t dummy_current = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
+    pr_info("%s: pid=%d, gpu=%d, current=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_current);
 
     seq_printf(m, "%zu\n", dummy_current);
     return 0;
 }
 
-// Preempt a specific process on a specific GPU
+// Show current compute timeslice for a specific process and GPU
+static int gvm_process_compute_high_show(struct seq_file *m, void *data)
+{
+    struct gvm_gpu_debugfs *gpu_debugfs = m->private;
+
+    // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
+    // Return dummy value based on PID and GPU ID for demonstration
+    size_t dummy_high = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
+    pr_info("%s: pid=%d, gpu=%d, high=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_high);
+
+    seq_printf(m, "%zu\n", dummy_high);
+    return 0;
+}
+
+// Set compute timeslice limit for a specific process and GPU
 static ssize_t gvm_process_compute_high_write(struct file *file, const char __user *user_buf,
                                               size_t count, loff_t *ppos)
 {
@@ -94,6 +113,12 @@ static ssize_t gvm_process_compute_high_write(struct file *file, const char __us
     struct task_struct *task;
     struct pid *pid_struct;
 
+    // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
+    // Return dummy value based on PID and GPU ID for demonstration
+    size_t dummy_high = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
+    pr_info("%s: pid=%d, gpu=%d, high=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_high);
+
     // Find the task by PID
     rcu_read_lock();
     pid_struct = find_pid_ns(gpu_debugfs->pid, &init_pid_ns);
@@ -108,60 +133,24 @@ static ssize_t gvm_process_compute_high_write(struct file *file, const char __us
 
     if (!task)
         return -ESRCH;
-
-    pr_err("gvm_process_compute_high_write: pid=%d, gpu=%d\n", gpu_debugfs->pid,
-           gpu_debugfs->gpu_id);
-    // // Get UVM file descriptors for this task
-    // num_uvmfds = gvm_linux_api_get_task_uvmfd(task, uvmfds, 8);
-    // if (num_uvmfds > 0) {
-    //     // Preempt all UVM contexts
-    //     for (i = 0; i < num_uvmfds; i++) {
-    //         gvm_linux_api_preempt_task(task, uvmfds[i]);
-    //     }
-    // }
 
     put_task_struct(task);
     return count;
 }
 
 // Reschedule a specific process on a specific GPU
-static ssize_t gvm_process_compute_current_write(struct file *file, const char __user *user_buf,
-                                                 size_t count, loff_t *ppos)
+static int gvm_process_compute_current_show(struct seq_file *m, void *data)
 {
-    struct seq_file *m = file->private_data;
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
-    struct task_struct *task;
-    struct pid *pid_struct;
 
-    // Find the task by PID
-    rcu_read_lock();
-    pid_struct = find_pid_ns(gpu_debugfs->pid, &init_pid_ns);
-    if (pid_struct) {
-        task = pid_task(pid_struct, PIDTYPE_PID);
-        if (task)
-            get_task_struct(task);
-    } else {
-        task = NULL;
-    }
-    rcu_read_unlock();
+    // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
+    // Return dummy value based on PID and GPU ID for demonstration
+    size_t dummy_current = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
+    pr_info("%s: pid=%d, gpu=%d, current=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_current);
 
-    if (!task)
-        return -ESRCH;
-
-    pr_err("gvm_process_compute_current_write: pid=%d, gpu=%d\n", gpu_debugfs->pid,
-           gpu_debugfs->gpu_id);
-
-    // Get UVM file descriptors for this task
-    // num_uvmfds = gvm_linux_api_get_task_uvmfd(task, uvmfds, 8);
-    // if (num_uvmfds > 0) {
-    //     // Reschedule all UVM contexts
-    //     for (i = 0; i < num_uvmfds; i++) {
-    //         gvm_linux_api_reschedule_task(task, uvmfds[i]);
-    //     }
-    // }
-
-    put_task_struct(task);
-    return count;
+    seq_printf(m, "%zu\n", dummy_current);
+    return 0;
 }
 
 //
@@ -195,11 +184,12 @@ static const struct file_operations gvm_process_memory_current_fops = {
 
 static int gvm_process_compute_high_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, NULL, inode->i_private);
+    return single_open(file, gvm_process_compute_high_show, inode->i_private);
 }
 
 static const struct file_operations gvm_process_compute_high_fops = {
     .open = gvm_process_compute_high_open,
+    .read = seq_read,
     .write = gvm_process_compute_high_write,
     .llseek = seq_lseek,
     .release = single_release,
@@ -207,7 +197,7 @@ static const struct file_operations gvm_process_compute_high_fops = {
 
 static int gvm_process_compute_current_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, NULL, inode->i_private);
+    return single_open(file, gvm_process_compute_current_show, inode->i_private);
 }
 
 static const struct file_operations gvm_process_compute_current_fops = {
@@ -223,12 +213,17 @@ static const struct file_operations gvm_process_compute_current_fops = {
 
 static int gvm_processes_list_show(struct seq_file *m, void *data)
 {
-    seq_printf(m, "PID\tGPU_ID\tMemory_Limit\tMemory_Current\tLast_Update\n");
-    seq_printf(m, "1234\t0\t1000000\t500000\t12345\n");
-    seq_printf(m, "1234\t1\t2000000\t750000\t12346\n");
-    seq_printf(m, "5678\t0\t1500000\t600000\t12347\n");
-    seq_printf(m, "# This is a dummy list showing per-GPU process entries\n");
+    struct gvm_process_debugfs *proc_debugfs;
+    struct hlist_node *tmp;
+    int bucket;
 
+    seq_printf(m, "PID\n");
+    spin_lock(&gvm_debugfs_lock);
+    hash_for_each_safe(gvm_debugfs_dirs, bucket, tmp, proc_debugfs, hash_node)
+    {
+        seq_printf(m, "%d\n", proc_debugfs->pid);
+    }
+    spin_unlock(&gvm_debugfs_lock);
     return 0;
 }
 

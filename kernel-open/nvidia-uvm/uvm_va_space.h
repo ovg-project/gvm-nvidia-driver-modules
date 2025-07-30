@@ -187,6 +187,9 @@ typedef struct
 
 struct uvm_va_space_struct
 {
+    // Process ID that owns this VA space (for debugfs tracking)
+    pid_t pid;
+
     // Mask of gpus registered with the va space
     uvm_processor_mask_t registered_gpus;
 

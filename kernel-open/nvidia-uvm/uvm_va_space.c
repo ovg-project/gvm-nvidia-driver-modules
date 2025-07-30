@@ -43,6 +43,8 @@
 #include "nv-kthread-q.h"
 #include <linux/mmzone.h>
 
+#include "gvm_debugfs.h"
+
 static bool processor_mask_array_test(const uvm_processor_mask_t *mask,
                                       uvm_processor_id_t mask_id,
                                       uvm_processor_id_t id)
@@ -190,6 +192,9 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
         return NV_ERR_INVALID_ARGUMENT;
     }
 
+    // Store the process ID for debugfs tracking
+    va_space->pid = current->pid;
+
     memset(va_space->gmemcghigh, 0xFF, sizeof(size_t) * UVM_ID_MAX_GPUS);
 
     uvm_init_rwsem(&va_space->lock, UVM_LOCK_ORDER_VA_SPACE);
@@ -275,6 +280,9 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
     uvm_mutex_lock(&g_uvm_global.va_spaces.lock);
     list_add_tail(&va_space->list_node, &g_uvm_global.va_spaces.list);
     uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
+
+    // Create debugfs directory for this process
+    gvm_debugfs_create_process_dir(va_space->pid);
 
     *va_space_ptr = va_space;
 
@@ -621,6 +629,9 @@ void uvm_va_space_destroy(uvm_va_space_t *va_space)
     UVM_ASSERT(bitmap_empty(va_space->enabled_peers_teardown, UVM_MAX_UNIQUE_GPU_PAIRS));
 
     uvm_mutex_unlock(&g_uvm_global.global_lock);
+
+    // Remove debugfs directory for this process
+    gvm_debugfs_remove_process_dir(va_space->pid);
 
     uvm_kvfree(va_space->mapping);
     uvm_kvfree(va_space);
