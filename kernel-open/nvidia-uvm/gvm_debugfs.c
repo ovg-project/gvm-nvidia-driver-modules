@@ -484,8 +484,13 @@ static struct file *_gvm_fget_files_rcu(struct files_struct *files, unsigned int
         /* NOTE (yifan): we use get_file_rcu_many() for kernel generality and
          * to avoid the use of file_ref_get() and internal fields of struct file.
          */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0) // 6.12.0
+        if (unlikely(!file_ref_get(&file->f_ref)))
+            continue;
+#else // LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
         if (unlikely(!get_file_rcu_many(file, 1)))
             continue;
+#endif
 
         /*
          * Such a race can take two forms:
