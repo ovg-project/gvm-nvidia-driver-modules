@@ -42,6 +42,8 @@ void gvm_debugfs_exit(void);
 // Per-process debugfs management
 int gvm_debugfs_create_process_dir(pid_t pid);
 void gvm_debugfs_remove_process_dir(pid_t pid);
+int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id);
+int gvm_debugfs_remove_gpu_dir(pid_t pid, int gpu_id);
 
 // Process tracking functions (needed by debugfs)
 struct gpu_process_entry *gvm_find_gpu_process(pid_t pid, bool create);

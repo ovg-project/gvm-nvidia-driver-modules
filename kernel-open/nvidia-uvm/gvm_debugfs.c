@@ -248,10 +248,7 @@ static int gvm_get_active_gpu_count(void);  // Implemented at the end.
 int gvm_debugfs_create_process_dir(pid_t pid)
 {
     struct gvm_process_debugfs *proc_debugfs;
-    struct gvm_gpu_debugfs *gpu_debugfs;
     char process_dirname[16];
-    char gpu_dirname[16];
-    int gpu_id;
     int ret = 0;
 
     // Check if directory already exists
@@ -281,54 +278,8 @@ int gvm_debugfs_create_process_dir(pid_t pid)
         goto cleanup_proc;
     }
 
-    // Create GPU subdirectories and files
-    for (gpu_id = 0; gpu_id < gvm_get_active_gpu_count(); gpu_id++) {
-        gpu_debugfs = &proc_debugfs->gpus[gpu_id];
-        gpu_debugfs->pid = pid;
-        gpu_debugfs->gpu_id = gpu_id;
-
-        // Create GPU subdirectory
-        snprintf(gpu_dirname, sizeof(gpu_dirname), "%d", gpu_id);
-        gpu_debugfs->gpu_dir = debugfs_create_dir(gpu_dirname, proc_debugfs->process_dir);
-        if (!gpu_debugfs->gpu_dir) {
-            ret = -ENOMEM;
-            goto cleanup_dirs;
-        }
-
-        // Create files in GPU directory
-        gpu_debugfs->memory_high = debugfs_create_file("memory.high", 0644, gpu_debugfs->gpu_dir,
-                                                       gpu_debugfs, &gvm_process_memory_high_fops);
-        if (!gpu_debugfs->memory_high) {
-            ret = -ENOMEM;
-            goto cleanup_dirs;
-        }
-
-        gpu_debugfs->memory_current =
-            debugfs_create_file("memory.current", 0444, gpu_debugfs->gpu_dir, gpu_debugfs,
-                                &gvm_process_memory_current_fops);
-        if (!gpu_debugfs->memory_current) {
-            ret = -ENOMEM;
-            goto cleanup_dirs;
-        }
-
-        gpu_debugfs->compute_high =
-            debugfs_create_file("compute.high", 0644, gpu_debugfs->gpu_dir, gpu_debugfs,
-                                &gvm_process_compute_high_fops);
-        if (!gpu_debugfs->compute_high) {
-            ret = -ENOMEM;
-            goto cleanup_dirs;
-        }
-
-        gpu_debugfs->compute_current =
-            debugfs_create_file("compute.current", 0444, gpu_debugfs->gpu_dir, gpu_debugfs,
-                                &gvm_process_compute_current_fops);
-        if (!gpu_debugfs->compute_current) {
-            ret = -ENOMEM;
-            goto cleanup_dirs;
-        }
-
-        proc_debugfs->num_gpus_created++;
-    }
+    // GPU subdirectories will be created lazily when GPUs are registered with UVM
+    // This avoids the issue of not knowing how many GPUs are available at process creation time
 
     // Add to hash table
     spin_lock(&gvm_debugfs_lock);
@@ -337,8 +288,6 @@ int gvm_debugfs_create_process_dir(pid_t pid)
 
     return 0;
 
-cleanup_dirs:
-    debugfs_remove_recursive(proc_debugfs->process_dir);
 cleanup_proc:
     kfree(proc_debugfs);
     return ret;
@@ -362,6 +311,142 @@ void gvm_debugfs_remove_process_dir(pid_t pid)
         }
     }
     spin_unlock(&gvm_debugfs_lock);
+}
+
+int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id)
+{
+    struct gvm_process_debugfs *proc_debugfs = NULL;
+    struct gvm_gpu_debugfs *gpu_debugfs;
+    char gpu_dirname[16];
+    int ret = 0;
+
+    // Find the process debugfs entry
+    spin_lock(&gvm_debugfs_lock);
+    hash_for_each_possible(gvm_debugfs_dirs, proc_debugfs, hash_node, pid)
+    {
+        if (proc_debugfs->pid == pid) {
+            break;
+        }
+        proc_debugfs = NULL;
+    }
+    spin_unlock(&gvm_debugfs_lock);
+
+    if (!proc_debugfs) {
+        // Process directory doesn't exist, create it first
+        ret = gvm_debugfs_create_process_dir(pid);
+        if (ret != 0)
+            return ret;
+
+        // Try to find it again
+        spin_lock(&gvm_debugfs_lock);
+        hash_for_each_possible(gvm_debugfs_dirs, proc_debugfs, hash_node, pid)
+        {
+            if (proc_debugfs->pid == pid) {
+                break;
+            }
+            proc_debugfs = NULL;
+        }
+        spin_unlock(&gvm_debugfs_lock);
+
+        if (!proc_debugfs)
+            return -ENOENT;
+    }
+
+    // Check if GPU directory already exists
+    if (gpu_id >= GVM_MAX_PROCESSORS || gpu_id < 0)
+        return -EINVAL;
+
+    gpu_debugfs = &proc_debugfs->gpus[gpu_id];
+    if (gpu_debugfs->gpu_dir)
+        return 0;  // Already exists
+
+    // Initialize GPU debugfs entry
+    gpu_debugfs->pid = pid;
+    gpu_debugfs->gpu_id = gpu_id;
+
+    // Create GPU subdirectory
+    snprintf(gpu_dirname, sizeof(gpu_dirname), "%d", gpu_id);
+    gpu_debugfs->gpu_dir = debugfs_create_dir(gpu_dirname, proc_debugfs->process_dir);
+    if (!gpu_debugfs->gpu_dir) {
+        ret = -ENOMEM;
+        goto cleanup;
+    }
+
+    // Create files in GPU directory
+    gpu_debugfs->memory_high = debugfs_create_file("memory.high", 0644, gpu_debugfs->gpu_dir,
+                                                   gpu_debugfs, &gvm_process_memory_high_fops);
+    if (!gpu_debugfs->memory_high) {
+        ret = -ENOMEM;
+        goto cleanup;
+    }
+
+    gpu_debugfs->memory_current =
+        debugfs_create_file("memory.current", 0444, gpu_debugfs->gpu_dir, gpu_debugfs,
+                            &gvm_process_memory_current_fops);
+    if (!gpu_debugfs->memory_current) {
+        ret = -ENOMEM;
+        goto cleanup;
+    }
+
+    gpu_debugfs->compute_high = debugfs_create_file("compute.high", 0644, gpu_debugfs->gpu_dir,
+                                                    gpu_debugfs, &gvm_process_compute_high_fops);
+    if (!gpu_debugfs->compute_high) {
+        ret = -ENOMEM;
+        goto cleanup;
+    }
+
+    gpu_debugfs->compute_current =
+        debugfs_create_file("compute.current", 0444, gpu_debugfs->gpu_dir, gpu_debugfs,
+                            &gvm_process_compute_current_fops);
+    if (!gpu_debugfs->compute_current) {
+        ret = -ENOMEM;
+        goto cleanup;
+    }
+
+    proc_debugfs->num_gpus_created++;
+    return 0;
+
+cleanup:
+    if (gpu_debugfs->gpu_dir) {
+        debugfs_remove_recursive(gpu_debugfs->gpu_dir);
+        gpu_debugfs->gpu_dir = NULL;
+    }
+    return ret;
+}
+
+int gvm_debugfs_remove_gpu_dir(pid_t pid, int gpu_id)
+{
+    struct gvm_process_debugfs *proc_debugfs = NULL;
+    struct gvm_gpu_debugfs *gpu_debugfs;
+
+    // Find the process debugfs entry
+    spin_lock(&gvm_debugfs_lock);
+    hash_for_each_possible(gvm_debugfs_dirs, proc_debugfs, hash_node, pid)
+    {
+        if (proc_debugfs->pid == pid) {
+            break;
+        }
+        proc_debugfs = NULL;
+    }
+    spin_unlock(&gvm_debugfs_lock);
+
+    if (!proc_debugfs)
+        return -ENOENT;
+
+    // Check if GPU directory already exists
+    if (gpu_id >= GVM_MAX_PROCESSORS || gpu_id < 0)
+        return -EINVAL;
+
+    gpu_debugfs = &proc_debugfs->gpus[gpu_id];
+    if (!gpu_debugfs->gpu_dir)
+        return -ENOENT;
+
+    // Remove GPU directory
+    debugfs_remove_recursive(gpu_debugfs->gpu_dir);
+    gpu_debugfs->gpu_dir = NULL;
+
+    proc_debugfs->num_gpus_created--;
+    return 0;
 }
 
 //
