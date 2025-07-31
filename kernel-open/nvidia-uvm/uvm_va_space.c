@@ -942,7 +942,7 @@ NV_STATUS uvm_va_space_register_gpu(uvm_va_space_t *va_space,
     }
 
     // Create debugfs GPU directory for this process
-    gvm_debugfs_create_gpu_dir(va_space->pid, uvm_id_gpu_index(gpu->id));
+    gvm_debugfs_create_gpu_dir(va_space->pid, gpu->id);
 
     goto done;
 
@@ -1096,7 +1096,7 @@ NV_STATUS uvm_va_space_unregister_gpu(uvm_va_space_t *va_space, const NvProcesso
     uvm_mutex_unlock(&g_uvm_global.global_lock);
 
     // Remove debugfs GPU directory for this process
-    gvm_debugfs_remove_gpu_dir(va_space->pid, uvm_id_gpu_index(gpu->id));
+    gvm_debugfs_remove_gpu_dir(va_space->pid, gpu->id);
 
     uvm_va_space_mm_or_current_release(va_space, mm);
 

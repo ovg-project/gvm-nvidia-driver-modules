@@ -53,7 +53,7 @@ static int gvm_process_memory_limit_show(struct seq_file *m, void *data)
             uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
         }
     }
-    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
             dummy_limit);
 
     seq_printf(m, "%zu\n", dummy_limit);
@@ -82,8 +82,8 @@ static ssize_t gvm_process_memory_limit_write(struct file *file, const char __us
     if (parsed != 0)
         return -EINVAL;
 
-    // gvm_set_gpu_memory_limit(gpu_debugfs->pid, gpu_debugfs->gpu_id, limit);
-    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+	uvm_debugfs_api_get_gpu_rss(gpu_debugfs->pid, )
+    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
             limit);
     return count;
 }
@@ -108,7 +108,7 @@ static int gvm_process_memory_current_show(struct seq_file *m, void *data)
         }
         uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
     }
-    pr_info("%s: pid=%d, gpu=%d, current=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+    pr_info("%s: pid=%d, gpu=%d, current=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
             dummy_current);
 
     seq_printf(m, "%zu\n", dummy_current);
@@ -135,7 +135,7 @@ static int gvm_process_compute_max_show(struct seq_file *m, void *data)
         }
         uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
     }
-    pr_info("%s: pid=%d, gpu=%d, max=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+    pr_info("%s: pid=%d, gpu=%d, max=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
             dummy_max);
 
     seq_printf(m, "%zu\n", dummy_max);
@@ -166,8 +166,8 @@ static ssize_t gvm_process_compute_max_write(struct file *file, const char __use
 
     // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
     // Return dummy value based on PID and GPU ID for demonstration.
-    size_t dummy_max = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
-    pr_info("%s: pid=%d, gpu=%d, max=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+    size_t dummy_max = (gpu_debugfs->pid * 500) + (uvm_id_gpu_index(gpu_debugfs->gpu_id) * 100);
+    pr_info("%s: pid=%d, gpu=%d, max=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
             dummy_max);
 
     return count;
@@ -193,7 +193,7 @@ static int gvm_process_compute_current_show(struct seq_file *m, void *data)
         }
         uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
     }
-    pr_info("%s: pid=%d, gpu=%d, current=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+    pr_info("%s: pid=%d, gpu=%d, current=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
             dummy_current);
 
     seq_printf(m, "%zu\n", dummy_current);
@@ -358,7 +358,7 @@ void gvm_debugfs_remove_process_dir(pid_t pid)
     spin_unlock(&gvm_debugfs_lock);
 }
 
-int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id)
+int gvm_debugfs_create_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id)
 {
     struct gvm_process_debugfs *proc_debugfs = NULL;
     struct gvm_gpu_debugfs *gpu_debugfs;
@@ -398,10 +398,10 @@ int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id)
     }
 
     // Check if GPU directory already exists
-    if (gpu_id >= GVM_MAX_PROCESSORS || gpu_id < 0)
+    if (uvm_id_gpu_index(gpu_id) >= GVM_MAX_PROCESSORS || uvm_id_gpu_index(gpu_id) < 0)
         return -EINVAL;
 
-    gpu_debugfs = &proc_debugfs->gpus[gpu_id];
+    gpu_debugfs = &proc_debugfs->gpus[uvm_id_gpu_index(gpu_id)];
     if (gpu_debugfs->gpu_dir)
         return 0;  // Already exists
 
@@ -410,7 +410,7 @@ int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id)
     gpu_debugfs->gpu_id = gpu_id;
 
     // Create GPU subdirectory
-    snprintf(gpu_dirname, sizeof(gpu_dirname), "%d", gpu_id);
+    snprintf(gpu_dirname, sizeof(gpu_dirname), "%d", uvm_id_gpu_index(gpu_id));
     gpu_debugfs->gpu_dir = debugfs_create_dir(gpu_dirname, proc_debugfs->process_dir);
     if (!gpu_debugfs->gpu_dir) {
         ret = -ENOMEM;
@@ -459,7 +459,7 @@ cleanup:
     return ret;
 }
 
-int gvm_debugfs_remove_gpu_dir(pid_t pid, int gpu_id)
+int gvm_debugfs_remove_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id)
 {
     struct gvm_process_debugfs *proc_debugfs = NULL;
     struct gvm_gpu_debugfs *gpu_debugfs;
@@ -479,10 +479,10 @@ int gvm_debugfs_remove_gpu_dir(pid_t pid, int gpu_id)
         return -ENOENT;
 
     // Check if GPU directory already exists
-    if (gpu_id >= GVM_MAX_PROCESSORS || gpu_id < 0)
+    if (uvm_id_gpu_index(gpu_id) >= GVM_MAX_PROCESSORS || uvm_id_gpu_index(gpu_id) < 0)
         return -EINVAL;
 
-    gpu_debugfs = &proc_debugfs->gpus[gpu_id];
+    gpu_debugfs = &proc_debugfs->gpus[uvm_id_gpu_index(gpu_id)];
     if (!gpu_debugfs->gpu_dir)
         return -ENOENT;
 

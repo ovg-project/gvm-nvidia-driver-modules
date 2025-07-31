@@ -5,6 +5,7 @@
 #include <linux/sched.h>
 
 #include "uvm_types.h"
+#include "uvm_processors.h"
 
 //
 // GVM Debugfs interface for GPU process control
@@ -23,7 +24,7 @@ struct gvm_gpu_debugfs {
     struct dentry *compute_max;     // compute.max file
     struct dentry *compute_current;  // compute.current file (read-only)
     pid_t pid;                       // Process ID
-    int gpu_id;                      // GPU ID
+    uvm_gpu_id_t gpu_id;                      // GPU ID
 };
 
 // Per-process debugfs directory structure
@@ -42,8 +43,8 @@ void gvm_debugfs_exit(void);
 // Per-process debugfs management
 int gvm_debugfs_create_process_dir(pid_t pid);
 void gvm_debugfs_remove_process_dir(pid_t pid);
-int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id);
-int gvm_debugfs_remove_gpu_dir(pid_t pid, int gpu_id);
+int gvm_debugfs_create_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id);
+int gvm_debugfs_remove_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id);
 
 // Process tracking functions (needed by debugfs)
 struct gpu_process_entry *gvm_find_gpu_process(pid_t pid, bool create);
