@@ -116,7 +116,7 @@ static int gvm_process_memory_current_show(struct seq_file *m, void *data)
 }
 
 // Show current compute timeslice for a specific process and GPU
-static int gvm_process_compute_high_show(struct seq_file *m, void *data)
+static int gvm_process_compute_max_show(struct seq_file *m, void *data)
 {
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
 
@@ -143,7 +143,7 @@ static int gvm_process_compute_high_show(struct seq_file *m, void *data)
 }
 
 // Set compute timeslice limit for a specific process and GPU
-static ssize_t gvm_process_compute_high_write(struct file *file, const char __user *user_buf,
+static ssize_t gvm_process_compute_max_write(struct file *file, const char __user *user_buf,
                                               size_t count, loff_t *ppos)
 {
     struct seq_file *m = file->private_data;
@@ -214,15 +214,15 @@ static const struct file_operations gvm_process_memory_current_fops = {
     .release = single_release,
 };
 
-static int gvm_process_compute_high_open(struct inode *inode, struct file *file)
+static int gvm_process_compute_max_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, gvm_process_compute_high_show, inode->i_private);
+    return single_open(file, gvm_process_compute_max_show, inode->i_private);
 }
 
-static const struct file_operations gvm_process_compute_high_fops = {
-    .open = gvm_process_compute_high_open,
+static const struct file_operations gvm_process_compute_max_fops = {
+    .open = gvm_process_compute_max_open,
     .read = seq_read,
-    .write = gvm_process_compute_high_write,
+    .write = gvm_process_compute_max_write,
     .llseek = seq_lseek,
     .release = single_release,
 };
@@ -418,9 +418,9 @@ int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id)
         goto cleanup;
     }
 
-    gpu_debugfs->compute_high = debugfs_create_file("compute.high", 0644, gpu_debugfs->gpu_dir,
-                                                    gpu_debugfs, &gvm_process_compute_high_fops);
-    if (!gpu_debugfs->compute_high) {
+    gpu_debugfs->compute_max = debugfs_create_file("compute.max", 0644, gpu_debugfs->gpu_dir,
+                                                    gpu_debugfs, &gvm_process_compute_max_fops);
+    if (!gpu_debugfs->compute_max) {
         ret = -ENOMEM;
         goto cleanup;
     }
@@ -592,14 +592,14 @@ static inline struct file *__gvm_fget_files_rcu(struct files_struct *files, unsi
          * only really need an 'acquire' one to protect the
          * loads below, but we don't have that.
          */
-        /* NOTE (yifan): we use get_file_rcu_many() for kernel generality and
+        /* NOTE (yifan): we use get_file_rcu() for kernel generality and
          * to avoid the use of file_ref_get() and internal fields of struct file.
          */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)  // 6.12.0
         if (unlikely(!file_ref_get(&file->f_ref)))
             continue;
 #else  // LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
-        if (unlikely(!get_file_rcu_many(file, 1)))
+        if (unlikely(!get_file_rcu(&file)))
             continue;
 #endif
 

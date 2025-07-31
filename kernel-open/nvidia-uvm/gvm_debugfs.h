@@ -20,8 +20,8 @@ struct gvm_gpu_debugfs {
     struct dentry *gpu_dir;          // /sys/kernel/debug/nvidia-uvm/processes/<pid>/<gpu_id>/
     struct dentry *memory_high;      // memory.high file
     struct dentry *memory_current;   // memory.current file (read-only)
-    struct dentry *compute_high;     // compute.high file
-    struct dentry *compute_current;  // compute.current file
+    struct dentry *compute_max;     // compute.max file
+    struct dentry *compute_current;  // compute.current file (read-only)
     pid_t pid;                       // Process ID
     int gpu_id;                      // GPU ID
 };
