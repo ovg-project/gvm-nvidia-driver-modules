@@ -19,8 +19,6 @@ static struct dentry *gvm_debugfs_processes_dir;
 static DEFINE_HASHTABLE(gvm_debugfs_dirs, GVM_DEBUGFS_HASH_BITS);
 static DEFINE_SPINLOCK(gvm_debugfs_lock);
 
-#define GVM_MAX_VA_SPACES 8
-
 //
 // Forward declarations of util functions
 //
@@ -28,7 +26,7 @@ static DEFINE_SPINLOCK(gvm_debugfs_lock);
 static struct task_struct *_gvm_find_task_by_pid(pid_t pid);
 static struct file *_gvm_fget_task(struct task_struct *task, unsigned int fd);
 static int _gvm_get_active_gpu_count(void);
-static int _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, size_t size);
+static uvm_va_space_t *_gvm_find_va_space_by_pid(pid_t pid);
 
 //
 // Per-process debugfs file operations
@@ -38,27 +36,14 @@ static int _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, siz
 static int gvm_process_memory_limit_show(struct seq_file *m, void *data)
 {
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
-    uvm_va_space_t *va_spaces[GVM_MAX_VA_SPACES];
-    int count = _gvm_find_va_spaces_by_pid(gpu_debugfs->pid, va_spaces, GVM_MAX_VA_SPACES);
+    uvm_va_space_t *va_space = _gvm_find_va_spaces_by_pid(gpu_debugfs->pid, va_spaces, GVM_MAX_VA_SPACES);
 
-    {
-        {
-            uvm_va_space_t *va_space = NULL;
-            uvm_mutex_lock(&g_uvm_global.va_spaces.lock);
-            list_for_each_entry(va_space, &g_uvm_global.va_spaces.list, list_node)
-            {
-                if (va_space->pid == gpu_debugfs->pid) {
-                    dummy_limit = va_space->pid;
-                    break;
-                }
-            }
-            uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
-        }
-    }
-    pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, uvm_id_gpu_index(gpu_debugfs->gpu_id),
-            dummy_limit);
+    if (!va_space)
+        return -ENOENT;
 
-    seq_printf(m, "%zu\n", dummy_limit);
+    UVM_ASSERT(va_space->gpu_cgroup != NULL);
+
+    seq_printf(m, "%zu\n", va_space->gpu_cgroup[uvm_id_gpu_index(gpu_debugfs->gpu_id)].memory_limit);
     return 0;
 }
 
@@ -682,23 +667,16 @@ static int _gvm_get_active_gpu_count(void)
     return count;
 }
 
-static int _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, size_t size)
+static uvm_va_space_t *_gvm_find_va_space_by_pid(pid_t pid)
 {
-    size_t count = 0;
-    uvm_va_space_t va_space;
+    uvm_va_space_t *va_space = NULL;
 
     uvm_mutex_lock(&g_uvm_global.va_spaces.lock);
     list_for_each_entry(va_space, &g_uvm_global.va_spaces.list, list_node) {
-        if (count >= size) {
+        if (va_space->pid == pid)
             break;
-        }
-
-        if (va_space->pid == pid) {
-            va_spaces[count] = va_space;
-            count += 1;
-        }
     }
     uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
 
-    return (int)count;
+    return va_space;
 }
