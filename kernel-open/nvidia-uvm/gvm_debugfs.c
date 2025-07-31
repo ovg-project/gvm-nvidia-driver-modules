@@ -32,13 +32,13 @@ static int _gvm_get_active_gpu_count(void);
 //
 
 // Show memory limit for a specific process and GPU
-static int gvm_process_memory_high_show(struct seq_file *m, void *data)
+static int gvm_process_memory_limit_show(struct seq_file *m, void *data)
 {
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
 
     // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
     // Return dummy value based on PID and GPU ID for demonstration
-    size_t dummy_high;
+    size_t dummy_limit;
     {
         {
             uvm_va_space_t *va_space = NULL;
@@ -46,7 +46,7 @@ static int gvm_process_memory_high_show(struct seq_file *m, void *data)
             list_for_each_entry(va_space, &g_uvm_global.va_spaces.list, list_node)
             {
                 if (va_space->pid == gpu_debugfs->pid) {
-                    dummy_high = va_space->pid;
+                    dummy_limit = va_space->pid;
                     break;
                 }
             }
@@ -54,14 +54,14 @@ static int gvm_process_memory_high_show(struct seq_file *m, void *data)
         }
     }
     pr_info("%s: pid=%d, gpu=%d, limit=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
-            dummy_high);
+            dummy_limit);
 
-    seq_printf(m, "%zu\n", dummy_high);
+    seq_printf(m, "%zu\n", dummy_limit);
     return 0;
 }
 
 // Set memory limit for a specific process and GPU
-static ssize_t gvm_process_memory_high_write(struct file *file, const char __user *user_buf,
+static ssize_t gvm_process_memory_limit_write(struct file *file, const char __user *user_buf,
                                              size_t count, loff_t *ppos)
 {
     struct seq_file *m = file->private_data;
@@ -122,23 +122,23 @@ static int gvm_process_compute_max_show(struct seq_file *m, void *data)
 
     // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
     // Return dummy value based on PID and GPU ID for demonstration
-    size_t dummy_high;
+    size_t dummy_max;
     {
         uvm_va_space_t *va_space = NULL;
         uvm_mutex_lock(&g_uvm_global.va_spaces.lock);
         list_for_each_entry(va_space, &g_uvm_global.va_spaces.list, list_node)
         {
             if (va_space->pid == gpu_debugfs->pid) {
-                dummy_high = va_space->pid;
+                dummy_max = va_space->pid;
                 break;
             }
         }
         uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
     }
-    pr_info("%s: pid=%d, gpu=%d, high=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
-            dummy_high);
+    pr_info("%s: pid=%d, gpu=%d, max=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_max);
 
-    seq_printf(m, "%zu\n", dummy_high);
+    seq_printf(m, "%zu\n", dummy_max);
     return 0;
 }
 
@@ -149,7 +149,7 @@ static ssize_t gvm_process_compute_max_write(struct file *file, const char __use
     struct seq_file *m = file->private_data;
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
     char buf[32];
-    size_t limit;
+    size_t max;
     int parsed;
 
     if (count >= sizeof(buf))
@@ -160,15 +160,15 @@ static ssize_t gvm_process_compute_max_write(struct file *file, const char __use
 
     buf[count] = '\0';
 
-    parsed = kstrtoul(buf, 10, (unsigned long *) &limit);
+    parsed = kstrtoul(buf, 10, (unsigned long *) &max);
     if (parsed != 0)
         return -EINVAL;
 
     // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
     // Return dummy value based on PID and GPU ID for demonstration.
-    size_t dummy_high = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
-    pr_info("%s: pid=%d, gpu=%d, high=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
-            dummy_high);
+    size_t dummy_max = (gpu_debugfs->pid * 500) + (gpu_debugfs->gpu_id * 100);
+    pr_info("%s: pid=%d, gpu=%d, max=%zu\n", __func__, gpu_debugfs->pid, gpu_debugfs->gpu_id,
+            dummy_max);
 
     return count;
 }
@@ -204,15 +204,15 @@ static int gvm_process_compute_current_show(struct seq_file *m, void *data)
 // File operation structures
 //
 
-static int gvm_process_memory_high_open(struct inode *inode, struct file *file)
+static int gvm_process_memory_limit_open(struct inode *inode, struct file *file)
 {
-    return single_open(file, gvm_process_memory_high_show, inode->i_private);
+    return single_open(file, gvm_process_memory_limit_show, inode->i_private);
 }
 
-static const struct file_operations gvm_process_memory_high_fops = {
-    .open = gvm_process_memory_high_open,
+static const struct file_operations gvm_process_memory_limit_fops = {
+    .open = gvm_process_memory_limit_open,
     .read = seq_read,
-    .write = gvm_process_memory_high_write,
+    .write = gvm_process_memory_limit_write,
     .llseek = seq_lseek,
     .release = single_release,
 };
@@ -418,9 +418,9 @@ int gvm_debugfs_create_gpu_dir(pid_t pid, int gpu_id)
     }
 
     // Create files in GPU directory
-    gpu_debugfs->memory_high = debugfs_create_file("memory.high", 0644, gpu_debugfs->gpu_dir,
-                                                   gpu_debugfs, &gvm_process_memory_high_fops);
-    if (!gpu_debugfs->memory_high) {
+    gpu_debugfs->memory_limit = debugfs_create_file("memory.limit", 0644, gpu_debugfs->gpu_dir,
+                                                   gpu_debugfs, &gvm_process_memory_limit_fops);
+    if (!gpu_debugfs->memory_limit) {
         ret = -ENOMEM;
         goto cleanup;
     }
