@@ -19,6 +19,8 @@ static struct dentry *gvm_debugfs_processes_dir;
 static DEFINE_HASHTABLE(gvm_debugfs_dirs, GVM_DEBUGFS_HASH_BITS);
 static DEFINE_SPINLOCK(gvm_debugfs_lock);
 
+#define GVM_MAX_VA_SPACES 8
+
 //
 // Forward declarations of util functions
 //
@@ -26,6 +28,7 @@ static DEFINE_SPINLOCK(gvm_debugfs_lock);
 static struct task_struct *_gvm_find_task_by_pid(pid_t pid);
 static struct file *_gvm_fget_task(struct task_struct *task, unsigned int fd);
 static int _gvm_get_active_gpu_count(void);
+static int _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, size_t size);
 
 //
 // Per-process debugfs file operations
@@ -35,10 +38,9 @@ static int _gvm_get_active_gpu_count(void);
 static int gvm_process_memory_limit_show(struct seq_file *m, void *data)
 {
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
+    uvm_va_space_t *va_spaces[GVM_MAX_VA_SPACES];
+    int count = _gvm_find_va_spaces_by_pid(gpu_debugfs->pid, va_spaces, GVM_MAX_VA_SPACES);
 
-    // TODO: Should read from the metadata datastructure in target pid's uvm_va_space.
-    // Return dummy value based on PID and GPU ID for demonstration
-    size_t dummy_limit;
     {
         {
             uvm_va_space_t *va_space = NULL;
@@ -678,4 +680,25 @@ static int _gvm_get_active_gpu_count(void)
     count = uvm_processor_mask_get_gpu_count(&g_uvm_global.retained_gpus);
     uvm_mutex_unlock(&g_uvm_global.global_lock);
     return count;
+}
+
+static int _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, size_t size)
+{
+    size_t count = 0;
+    uvm_va_space_t va_space;
+
+    uvm_mutex_lock(&g_uvm_global.va_spaces.lock);
+    list_for_each_entry(va_space, &g_uvm_global.va_spaces.list, list_node) {
+        if (count >= size) {
+            break;
+        }
+
+        if (va_space->pid == pid) {
+            va_spaces[count] = va_space;
+            count += 1;
+        }
+    }
+    uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
+
+    return (int)count;
 }
