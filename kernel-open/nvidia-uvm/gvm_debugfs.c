@@ -322,6 +322,7 @@ void gvm_debugfs_remove_process_dir(pid_t pid)
 
 int gvm_debugfs_create_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id)
 {
+    uvm_va_space_t *va_space = _gvm_find_va_space_by_pid(pid);
     struct gvm_process_debugfs *proc_debugfs = NULL;
     struct gvm_gpu_debugfs *gpu_debugfs;
     char gpu_dirname[16];
@@ -366,6 +367,12 @@ int gvm_debugfs_create_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id)
     gpu_debugfs = &proc_debugfs->gpus[uvm_id_gpu_index(gpu_id)];
     if (gpu_debugfs->gpu_dir)
         return 0;  // Already exists
+
+    if (va_space) {
+        UVM_ASSERT(va_space->gpu_cgroup != NULL);
+        va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].memory_current = 0;
+        va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].compute_current = 100;
+    }
 
     // Initialize GPU debugfs entry
     gpu_debugfs->pid = pid;
