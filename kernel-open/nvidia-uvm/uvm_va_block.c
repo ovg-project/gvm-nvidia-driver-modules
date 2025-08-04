@@ -2316,7 +2316,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
         }
         else {
             // Try allocating a new one without eviction
-            status = uvm_pmm_gpu_alloc_user(&gpu->pmm, 1, size, UVM_PMM_ALLOC_FLAGS_NONE, &gpu_chunk, &retry->tracker);
+            status = uvm_pmm_gpu_alloc_user_impl(&gpu->pmm, 1, size, UVM_PMM_ALLOC_FLAGS_NONE, task->pid, &gpu_chunk, &retry->tracker);
         }
 
         if (status == NV_ERR_NO_MEMORY) {
@@ -2325,7 +2325,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
             // be restarted.
             uvm_mutex_unlock(&block->lock);
 
-            status = uvm_pmm_gpu_alloc_user(&gpu->pmm, 1, size, evict_flags, &gpu_chunk, &retry->tracker);
+            status = uvm_pmm_gpu_alloc_user_impl(&gpu->pmm, 1, size, evict_flags, task->pid, &gpu_chunk, &retry->tracker);
             if (status == NV_OK) {
                 block_retry_add_free_chunk(retry, gpu_chunk);
                 status = NV_ERR_MORE_PROCESSING_REQUIRED;

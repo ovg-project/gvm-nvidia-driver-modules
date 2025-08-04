@@ -457,6 +457,14 @@ NV_STATUS uvm_pmm_gpu_alloc_user(uvm_pmm_gpu_t *pmm,
                                  uvm_gpu_chunk_t **chunks,
                                  uvm_tracker_t *out_tracker);
 
+NV_STATUS uvm_pmm_gpu_alloc_user_impl(uvm_pmm_gpu_t *pmm,
+                                      size_t num_chunks,
+                                      uvm_chunk_size_t chunk_size,
+                                      uvm_pmm_alloc_flags_t flags,
+                                      pid_t pid,
+                                      uvm_gpu_chunk_t **chunks,
+                                      uvm_tracker_t *out_tracker);
+
 // Kernel memory allocator.
 //
 // See uvm_pmm_gpu_alloc_user documentation for details on the behavior of this
