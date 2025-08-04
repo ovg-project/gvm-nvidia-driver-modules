@@ -139,6 +139,8 @@ static size_t va_space_calculate_rss(uvm_va_space_t *va_space, uvm_gpu_t *gpu) {
     return rss;
 }
 
+static void block_destroy_gpu_state(uvm_va_block_t *block, uvm_va_block_context_t *block_context, uvm_gpu_id_t id);
+
 static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gpu, size_t target_size) {
     struct mm_struct *mm;
     uvm_va_range_t *va_range;
@@ -172,16 +174,9 @@ static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gp
                     if (gpu_state) {
                         status = block_evict_pages_from_gpu(va_block, gpu, mm, false);
                         if (status == NV_OK) {
-                            // total_evicted_bytes += uvm_page_mask_weight(&gpu_state->resident) * 4096;
                             total_evicted_bytes += uvm_va_block_size(va_block);
-                            va_block_num_chunks = block_num_gpu_chunks(va_block, gpu);
-                            for (chunk_index = 0; chunk_index < va_block_num_chunks; ++chunk_index) {
-                                if (gpu_state->chunks[chunk_index] &&
-                                        (gpu_state->chunks[chunk_index]->state == UVM_PMM_GPU_CHUNK_STATE_ALLOCATED ||
-                                        gpu_state->chunks[chunk_index]->state == UVM_PMM_GPU_CHUNK_STATE_TEMP_PINNED)) {
-                                    free_chunk(pmm, gpu_state->chunks[chunk_index]);
-                                    gpu_state->chunks[chunk_index] = NULL;
-                                }
+                            if (uvm_va_block_gpu_state_get(va_block, gpu->id)) {
+                                block_destroy_gpu_state(va_block, uvm_va_space_block_context(va_space, NULL), gpu->id);
                             }
                         }
                     }
