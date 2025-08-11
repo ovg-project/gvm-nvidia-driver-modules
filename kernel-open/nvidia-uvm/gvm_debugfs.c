@@ -23,6 +23,8 @@ static struct dentry *gvm_debugfs_processes_dir;
 static DEFINE_HASHTABLE(gvm_debugfs_dirs, GVM_DEBUGFS_HASH_BITS);
 static DEFINE_SPINLOCK(gvm_debugfs_lock);
 
+#define GVM_MAX_VM_SPACES 8
+
 //
 // Forward declarations of util functions
 //
@@ -31,6 +33,7 @@ static struct task_struct *_gvm_find_task_by_pid(pid_t pid);
 static struct file *_gvm_fget_task(struct task_struct *task, unsigned int fd);
 static int _gvm_get_active_gpu_count(void);
 static uvm_va_space_t *_gvm_find_va_space_by_pid(pid_t pid);
+static size_t _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, size_t size);
 
 //
 // Per-process debugfs file operations
@@ -57,12 +60,16 @@ static ssize_t gvm_process_memory_limit_write(struct file *file, const char __us
 {
     struct seq_file *m = file->private_data;
     struct gvm_gpu_debugfs *gpu_debugfs = m->private;
-    uvm_va_space_t *va_space = _gvm_find_va_space_by_pid(gpu_debugfs->pid);
+    uvm_va_space_t *va_spaces[GVM_MAX_VM_SPACES];
+    size_t va_space_index;
+    size_t va_space_count;
     char buf[32];
     size_t limit;
     int error;
 
-    if (!va_space)
+    va_space_count = _gvm_find_va_spaces_by_pid(gpu_debugfs->pid, va_spaces, GVM_MAX_VM_SPACES);
+
+    if (va_space_count == 0)
         return -ENOENT;
 
     if (count >= sizeof(buf))
@@ -77,10 +84,12 @@ static ssize_t gvm_process_memory_limit_write(struct file *file, const char __us
     if (error != 0)
         return error;
 
-    UVM_ASSERT(va_space->gpu_cgroup != NULL);
-    va_space->gpu_cgroup[uvm_id_gpu_index(gpu_debugfs->gpu_id)].memory_limit = limit;
+    for (va_space_index = 0; va_space_index < va_space_count; ++va_space_index) {
+        UVM_ASSERT(va_spaces[va_space_index]->gpu_cgroup != NULL);
+        va_spaces[va_space_index]->gpu_cgroup[uvm_id_gpu_index(gpu_debugfs->gpu_id)].memory_limit = limit;
 
-    uvm_debugfs_api_charge_gpu_memory_limit(va_space, gpu_debugfs->gpu_id, va_space->gpu_cgroup[uvm_id_gpu_index(gpu_debugfs->gpu_id)].memory_current, limit);
+        uvm_debugfs_api_charge_gpu_memory_limit(va_spaces[va_space_index], gpu_debugfs->gpu_id, va_spaces[va_space_index]->gpu_cgroup[uvm_id_gpu_index(gpu_debugfs->gpu_id)].memory_current, limit);
+    }
 
     return count;
 }
@@ -688,6 +697,26 @@ static uvm_va_space_t *_gvm_find_va_space_by_pid(pid_t pid)
     uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
 
     return va_space;
+}
+
+static size_t _gvm_find_va_spaces_by_pid(pid_t pid, uvm_va_space_t **va_spaces, size_t size)
+{
+    uvm_va_space_t *va_space;
+    size_t count = 0;
+
+    uvm_mutex_lock(&g_uvm_global.va_spaces.lock);
+    list_for_each_entry(va_space, &g_uvm_global.va_spaces.list, list_node) {
+        if (count >= size)
+            break;
+
+        if (va_space->pid == pid) {
+            va_spaces[count] = va_space;
+            count += 1;
+        }
+    }
+    uvm_mutex_unlock(&g_uvm_global.va_spaces.lock);
+
+    return count;
 }
 
 int try_charge_gpu_memcg_debugfs(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, size_t size) {
