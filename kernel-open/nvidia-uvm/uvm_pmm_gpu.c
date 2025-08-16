@@ -1495,7 +1495,6 @@ void uvm_pmm_gpu_mark_root_chunk_unused(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chu
 static uvm_gpu_root_chunk_t *pick_root_chunk_to_evict(uvm_pmm_gpu_t *pmm, pid_t pid)
 {
     uvm_gpu_chunk_t *chunk;
-    uvm_va_space_t *va_space;
 
     uvm_spin_lock(&pmm->list_lock);
 
@@ -1526,13 +1525,6 @@ static uvm_gpu_root_chunk_t *pick_root_chunk_to_evict(uvm_pmm_gpu_t *pmm, pid_t 
         if (!chunk)
             chunk = list_first_chunk_of_pid(&pmm->root_chunks.va_block_used, pid);
 
-        if (!chunk || !chunk->va_block || pid == 0)
-            break;
-
-        va_space = uvm_va_block_get_va_space_maybe_dead(chunk->va_block);
-        if (va_space) {
-            printk(KERN_INFO "va_space pid %d, target pid %d\n", va_space->pid, pid);
-        }
         break;
     }
 
