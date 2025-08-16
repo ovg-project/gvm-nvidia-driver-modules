@@ -1565,7 +1565,7 @@ static NV_STATUS pick_and_evict_root_chunk(uvm_pmm_gpu_t *pmm,
     uvm_assert_mutex_locked(&pmm->lock);
 
     while (true) {
-        root_chunk = pick_root_chunk_to_evict(pmm, pid);
+        root_chunk = pick_root_chunk_to_evict(pmm, (flags & UVM_PMM_ALLOC_FLAGS_EVICT_FORCE) ? pid : 0);
         if (!root_chunk)
             return NV_ERR_NO_MEMORY;
 
