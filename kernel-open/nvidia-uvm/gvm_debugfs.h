@@ -21,6 +21,7 @@
 struct gvm_gpu_debugfs {
     struct dentry *gpu_dir;          // /sys/kernel/debug/nvidia-uvm/processes/<pid>/<gpu_id>/
     struct dentry *memory_limit;      // memory.limit file
+    struct dentry *memory_priority;      // memory.priority file
     struct dentry *memory_recommend;  // memory.recommend file (read-only)
     struct dentry *memory_current;   // memory.current file (read-only)
     struct dentry *compute_priority;     // compute.priority file
