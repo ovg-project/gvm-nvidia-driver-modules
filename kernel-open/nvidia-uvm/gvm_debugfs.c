@@ -30,7 +30,8 @@ static DEFINE_SPINLOCK(gvm_debugfs_lock);
 
 // Timeslice is calculated by GVM_MAX_TIMESLICE_US >> priority
 // In default, priority is 2, whose timeslice is 2048 us
-#define GVM_MAX_TIMESLICE_US 8192
+#define GVM_MIN_PRIORITY 6
+#define GVM_MAX_TIMESLICE_US 16384
 
 //
 // Forward declarations of util functions
@@ -287,8 +288,8 @@ static ssize_t gvm_process_compute_priority_write(struct file *file, const char 
     if (error != 0)
         return error;
 
-    if (priority > 4) {
-        printk(KERN_INFO "priority should range from 0 to 4 but got %llu\n", priority);
+    if (priority > GVM_MIN_PRIORITY) {
+        printk(KERN_INFO "priority should range from 0 to %d but got %llu\n", GVM_MIN_PRIORITY, priority);
         error = -EINVAL;
         goto out;
     }
@@ -653,7 +654,7 @@ int gvm_debugfs_create_gpu_dir(pid_t pid, uvm_gpu_id_t gpu_id)
         va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].memory_current = 0;
         va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].memory_swap_current = 0;
 
-        va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].compute_priority = 2;
+        va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].compute_priority = GVM_MIN_PRIORITY / 2;
         va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].compute_freeze = 0;
         va_space->gpu_cgroup[uvm_id_gpu_index(gpu_id)].compute_current = 100;
     }
