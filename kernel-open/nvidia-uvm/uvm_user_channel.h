@@ -61,6 +61,7 @@ struct uvm_user_channel_group_struct
     uvm_parent_gpu_t *parent;
     NvU32 group_id;
     NvU32 runlist_id;
+    UVM_GPU_CHANNEL_ENGINE_TYPE engine_type;
     struct list_head channel_group_node;
     struct list_head channel_head;
 };

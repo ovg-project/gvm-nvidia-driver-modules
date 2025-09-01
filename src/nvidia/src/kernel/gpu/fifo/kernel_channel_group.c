@@ -678,7 +678,6 @@ kchangrpSetInterleaveLevel_IMPL
             {
                 NvU32 subdevInst = gpumgrGetSubDeviceInstanceFromGpu(pGpu);
                 pKernelChannelGroup->pInterleaveLevel[subdevInst] = value;
-                NV_PRINTF(LEVEL_ERROR, "kchangrpSetInterleaveLevel_IMPL set interleave level to %d\n", value);
             }
             SLI_LOOP_END
 

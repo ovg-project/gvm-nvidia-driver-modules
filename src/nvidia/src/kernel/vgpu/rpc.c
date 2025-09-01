@@ -10560,7 +10560,6 @@ NV_STATUS rpcRmApiControl_GSP
     {
         status = _issueRpcAndWait(pGpu, pRpc);
     }
-    NV_PRINTF(LEVEL_ERROR, "Issus rpc for cmd 0x%x and got status 0x%x\n", cmd, status);
 
     //
     // At this point we have:
@@ -10569,7 +10568,6 @@ NV_STATUS rpcRmApiControl_GSP
     //
     if (status == NV_OK)
     {
-        NV_PRINTF(LEVEL_ERROR, "GSP returns with status 0x%x\n", rpc_params->status);
         // Skip copyout if we got an error from the GSP control handler
         if (rpc_params->status != NV_OK && !(rpc_params->rmapiRpcFlags & RMAPI_RPC_FLAGS_COPYOUT_ON_ERROR))
         {

@@ -210,9 +210,11 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
             user_channel_group->parent = gpu->parent;
             user_channel_group->group_id = user_channel->tsg.id;
             user_channel_group->runlist_id = user_channel->hw_runlist_id;
+            user_channel_group->engine_type = user_channel->engine_type;
             list_add(&user_channel_group->channel_group_node, &user_channel->gpu_va_space->registered_channel_groups);
             INIT_LIST_HEAD(&user_channel_group->channel_head);
         }
+        UVM_ASSERT(user_channel->engine_type == user_channel_group->engine_type);
         list_add(&user_channel->channel_node, &user_channel_group->channel_head);
     }
 
