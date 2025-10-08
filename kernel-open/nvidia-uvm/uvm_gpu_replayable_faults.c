@@ -116,6 +116,7 @@ module_param(uvm_perf_fault_max_throttle_per_service, uint, S_IRUGO);
 static unsigned uvm_perf_fault_coalesce = 1;
 module_param(uvm_perf_fault_coalesce, uint, S_IRUGO);
 
+// [GVM] GPU transparent huge page support. Promote 4KB faults to 2MB chunks when safe.
 #define UVM_PERF_PROMOTE_2M_FAULTS_DEFAULT 1
 
 // Enable promotion of replayable GPU faults to 2MB chunks when safe so that
@@ -123,6 +124,7 @@ module_param(uvm_perf_fault_coalesce, uint, S_IRUGO);
 static unsigned uvm_perf_promote_2m_faults = UVM_PERF_PROMOTE_2M_FAULTS_DEFAULT;
 module_param(uvm_perf_promote_2m_faults, uint, S_IRUGO);
 
+// [GVM] Check if a block supports 2MB page for GPU faults.
 static bool block_supports_2m_for_gpu_faults(uvm_va_block_t *va_block, uvm_processor_id_t gpu_id)
 {
     uvm_va_space_t *va_space;
@@ -153,6 +155,7 @@ static bool block_supports_2m_for_gpu_faults(uvm_va_block_t *va_block, uvm_proce
     if (!uvm_processor_mask_test(&va_block->resident, UVM_ID_CPU))
         return false;
 
+    // Find the NUMA node that has the full block resident.
     for_each_possible_uvm_node(nid_iter) {
         cpu_chunk = uvm_cpu_chunk_get_chunk_for_page(va_block, nid_iter, 0);
         if (!cpu_chunk)
@@ -203,6 +206,7 @@ static bool block_supports_2m_for_gpu_faults(uvm_va_block_t *va_block, uvm_proce
     return uvm_mmu_page_size_supported(&gpu_va_space->page_tables, UVM_PAGE_SIZE_2M);
 }
 
+// [GVM] Promote 4KB faults to 2MB chunks when safe.
 static bool promote_fault_batch_to_2m(uvm_va_block_t *va_block,
                                       uvm_service_block_context_t *service_block_context,
                                       uvm_fault_access_type_t block_max_access_type)
@@ -1540,7 +1544,7 @@ static NV_STATUS service_fault_batch_block_locked(uvm_gpu_t *gpu,
     NvU64 end;
     uvm_fault_access_type_t block_max_access_type = UVM_FAULT_ACCESS_TYPE_READ;
     bool block_access_type_initialized = false;
-    bool promoted_to_2m = false;
+    bool promoted_to_2m = false; // [GVM] Promote 4KB faults to 2MB chunks when safe.
 
     // Check that all uvm_fault_access_type_t values can fit into an NvU8
     BUILD_BUG_ON(UVM_FAULT_ACCESS_TYPE_COUNT > (int)(NvU8)-1);
