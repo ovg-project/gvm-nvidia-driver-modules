@@ -20,6 +20,10 @@ for mod in nvidia_drm nvidia_modeset nvidia_uvm nvidia; do
     fi
 done
 
+# Load ECC and ECDH modules
+sudo modprobe ecc || true
+sudo modprobe ecdh_generic || true
+
 # Insert newly compiled modules
 sudo insmod kernel-open/nvidia.ko
 sudo insmod kernel-open/nvidia-uvm.ko

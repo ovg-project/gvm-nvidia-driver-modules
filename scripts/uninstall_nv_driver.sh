@@ -26,16 +26,24 @@ stop_services() {
 }
 
 unload_modules() {
-  step "Unloading NVIDIA kernel modules"
+  step "Attempting to unload NVIDIA kernel modules..."
   # Try multiple times in case something is holding the device
   for i in {1..3}; do
     modprobe -r nvidia_drm nvidia_uvm nvidia_modeset nvidia 2>/dev/null || true
     if ! lsmod | egrep -q '(^nvidia| nvidia_|uvm|modeset)'; then
-      echo "NVIDIA modules are not loaded."
+      echo "All NVIDIA modules unloaded."
       return 0
     fi
-    echo "Some modules still loaded; checking for processes using /dev/nvidia* or /dev/dri/*"
-    fuser -v /dev/nvidia* /dev/dri/* 2>/dev/null || true
+    echo "Some modules still loaded; checking and killing processes..."
+    # Get PIDs of processes holding NVIDIA devices and kill them
+    local pids
+    pids=$(fuser /dev/nvidia* /dev/dri/* 2>/dev/null || true)
+    if [[ -n "$pids" ]]; then
+      echo "Found processes using NVIDIA devices: $pids"
+      echo "Killing processes..."
+      kill -9 $pids 2>/dev/null || true
+      sleep 1
+    fi
     sleep 1
   done
   # One last attempt
@@ -74,7 +82,7 @@ apt_purge() {
   # Purge broad patterns safely (ignore if not installed)
   apt-get -y purge \
     'nvidia-*' 'libnvidia-*' 'xserver-xorg-video-nvidia*' \
-    'cuda-*' 'libcuda*' 2>/dev/null || true
+    'cuda-*' 'libcuda*' dkms 2>/dev/null || true
 
   # Clean reverse-deps and residual configs
   apt-get -y autoremove --purge 2>/dev/null || true
@@ -94,6 +102,24 @@ remove_leftovers() {
   rm -rf /usr/lib/nvidia /usr/lib32/nvidia /usr/lib/x86_64-linux-gnu/nvidia 2>/dev/null || true
   rm -rf /usr/share/X11/xorg.conf.d/10-nvidia*.conf 2>/dev/null || true
   rm -f  /etc/X11/xorg.conf 2>/dev/null || true
+}
+
+ensure_build_tools() {
+  step "Ensuring build tools and kernel headers are installed"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq 2>/dev/null || true
+  apt-get install -y build-essential "linux-headers-$(uname -r)" 2>/dev/null || true
+}
+
+blacklist_nouveau() {
+  if [[ $ENABLE_NOUVEAU -eq 0 ]]; then
+    step "Blacklisting nouveau driver"
+    echo -e "blacklist nouveau\noptions nouveau modeset=0" > /etc/modprobe.d/blacklist-nouveau.conf
+    echo "Nouveau driver blacklisted in /etc/modprobe.d/blacklist-nouveau.conf"
+  else
+    step "Removing nouveau blacklist (if any)"
+    rm -f /etc/modprobe.d/blacklist-nouveau.conf 2>/dev/null || true
+  fi
 }
 
 regen_initramfs() {
@@ -124,8 +150,10 @@ main() {
   dkms_remove
   apt_purge
   remove_leftovers
+  blacklist_nouveau
   regen_initramfs
   final_note
+  # ensure_build_tools
 }
 
 main "$@"
