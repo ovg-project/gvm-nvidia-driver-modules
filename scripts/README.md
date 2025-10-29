@@ -1,6 +1,6 @@
 # Setup environment for GVM
 
-Testes on `g2-standard-8` on GCP, with image `ubuntu-accelerator-2404-amd64-with-nvidia-580-v20251021` on `x86/64`.
+Testes on `g2-standard-8` and `a2-highgpu-1g` on GCP, with image `ubuntu-accelerator-2404-amd64-with-nvidia-580-v20251021` on `x86/64`. Need 150GB disk space for installation.
 
 ## Setup
 
@@ -8,7 +8,9 @@ Testes on `g2-standard-8` on GCP, with image `ubuntu-accelerator-2404-amd64-with
 ./download_pkgs.sh
 
 # Required for images comes with NVIDIA driver
-./uninstall_nv_driver.sh
+sudo bash ./uninstall_nv_driver.sh
+# Reboot to complete uninstallation (optional but highly recommended)
+sudo reboot
 
 ./install_cuda.sh
 # Select all default options
@@ -21,12 +23,6 @@ Testes on `g2-standard-8` on GCP, with image `ubuntu-accelerator-2404-amd64-with
 ./compile_modules.sh
 ```
 
-## Cleanup
-
-```bash
-sudo reboot
-```
-
 ## Install/uninstall kernel modules
 
 ```bash
@@ -34,6 +30,11 @@ sudo reboot
 ./redeploy_uvm_module.sh  # uninstall previous kernel modules and re-deploy them
 ./uninstall_modules.sh  # uninstall previous kernel modules
 ```
+
+## Running applications
+
+After those steps, the GVM is installed on the system. Please goes to `gvm-dev` repo to run applications (e.g. diffusion+vLLM).
+
 
 ## What to do when complaining about driver not loaded?
 
