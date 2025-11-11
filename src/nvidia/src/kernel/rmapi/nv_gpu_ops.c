@@ -11437,7 +11437,7 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
                         pParams,
                         dataSize));
     os_get_current_time(&rmapiEndTimeSec, &rmapiEndTimeUSec);
-    if (cmd == NVA06C_CTRL_CMD_SET_TIMESLICE || cmd == NVA06C_CTRL_CMD_PREEMPT || cmd == NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL || cmd == NVA06C_CTRL_CMD_MAKE_REALTIME) {
+    if (cmd == NVA06C_CTRL_CMD_SET_TIMESLICE || cmd == NVA06C_CTRL_CMD_PREEMPT || cmd == NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL || cmd == NVA06C_CTRL_CMD_MAKE_REALTIME || cmd == NVA06C_CTRL_CMD_GPFIFO_SCHEDULE) {
         NV_PRINTF(LEVEL_ERROR,
                 "cmd 0x%x spent %d us with type %d\n",
                 cmd,

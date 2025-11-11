@@ -73,4 +73,6 @@ size_t get_gpu_memcg_limit(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id);
 size_t sum_gpu_memcg_current_all(uvm_gpu_id_t gpu_id);
 void calculate_gpu_memcg_recommend_all(uvm_gpu_id_t gpu_id);
 void signal_gpu_memcg_current_over_recommend_all(uvm_gpu_id_t gpu_id);
+
+NV_STATUS gvm_update_event_count(UVM_UPDATE_EVENT_COUNT_PARAMS *params, uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id)
 #endif  // _GVM_DEBUGFS_H

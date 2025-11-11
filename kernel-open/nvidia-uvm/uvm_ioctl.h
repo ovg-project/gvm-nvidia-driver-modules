@@ -1156,6 +1156,13 @@ typedef struct {
 } NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS;
 #define NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL (0xa06c0107)
 
+typedef struct {
+    NvBool bEnable;               // IN
+    NvBool bSkipSubmit;           // IN
+    NvBool bSkipEnable;           // IN
+} NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS;
+#define NVA06C_CTRL_CMD_GPFIFO_SCHEDULE (0xa06c0101)
+
 typedef struct
 {
     NvU32           cmd;                  // IN
@@ -1164,6 +1171,7 @@ typedef struct
         NVA06C_CTRL_PREEMPT_PARAMS NVA06C_CTRL_PREEMPT_PARAMS;
         NVA06C_CTRL_MAKE_REALTIME_PARAMS NVA06C_CTRL_MAKE_REALTIME_PARAMS;
         NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS;
+        NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS;
     } data;
     NvU32           dataSize;             // IN
     NV_STATUS       rmStatus;             // OUT
