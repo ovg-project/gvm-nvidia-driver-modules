@@ -1071,3 +1071,30 @@ NV_STATUS  NV_API_CALL rm_gpu_ops_ctrl_cmd_operate_channel(nvidia_stack_t *sp,
     NV_EXIT_RM_RUNTIME(sp,fp);
     return rmStatus;
 }
+
+NV_STATUS  NV_API_CALL rm_gpu_ops_preempt_channel_group(nvidia_stack_t *sp,
+                                                        NvProcessorUuid *uuid,
+                                                        NvU32 tsgId,
+                                                        NvU32 runlistId)
+{
+    NV_STATUS rmStatus;
+    void *fp;
+    NV_ENTER_RM_RUNTIME(sp,fp);
+    rmStatus = nvGpuOpsPreemptChannelGroup(uuid, tsgId, runlistId);
+    NV_EXIT_RM_RUNTIME(sp,fp);
+    return rmStatus;
+}
+
+NV_STATUS  NV_API_CALL rm_gpu_ops_reschedule_channel_group(nvidia_stack_t *sp,
+                                                           NvProcessorUuid *uuid,
+                                                           NvU32 tsgId,
+                                                           NvU32 runlistId)
+{
+    NV_STATUS rmStatus;
+    void *fp;
+    NV_ENTER_RM_RUNTIME(sp,fp);
+    rmStatus = nvGpuOpsRescheduleChannelGroup(uuid, tsgId, runlistId);
+    NV_EXIT_RM_RUNTIME(sp,fp);
+    return rmStatus;
+}
+

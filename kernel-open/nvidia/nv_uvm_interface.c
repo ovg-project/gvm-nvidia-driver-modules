@@ -1778,6 +1778,30 @@ NV_STATUS nvUvmInterfaceCtrlCmdOperateChannel(void *retainedChannel,
 }
 EXPORT_SYMBOL(nvUvmInterfaceCtrlCmdOperateChannel);
 
+NV_STATUS nvUvmInterfacePreemptChannelGroup(NvProcessorUuid *uuid,
+                                            NvU32 tsgId,
+                                            NvU32 runlistId)
+{
+    NV_STATUS status;
+    nvidia_stack_t *sp = nvUvmGetSafeStack();
+    status = rm_gpu_ops_preempt_channel_group(sp, uuid, tsgId, runlistId);
+    nvUvmFreeSafeStack(sp);
+    return status;
+}
+EXPORT_SYMBOL(nvUvmInterfacePreemptChannelGroup);
+
+NV_STATUS nvUvmInterfaceRescheduleChannelGroup(NvProcessorUuid *uuid,
+                                               NvU32 tsgId,
+                                               NvU32 runlistId)
+{
+    NV_STATUS status;
+    nvidia_stack_t *sp = nvUvmGetSafeStack();
+    status = rm_gpu_ops_reschedule_channel_group(sp, uuid, tsgId, runlistId);
+    nvUvmFreeSafeStack(sp);
+    return status;
+}
+EXPORT_SYMBOL(nvUvmInterfaceRescheduleChannelGroup);
+
 #else // NV_UVM_ENABLE
 
 NV_STATUS nv_uvm_suspend(void)

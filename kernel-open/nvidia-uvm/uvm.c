@@ -1227,52 +1227,36 @@ static NV_STATUS uvm_debugfs_api_ctrl_cmd_operate_gr_channel(UVM_CTRL_CMD_OPERAT
     return NV_OK;
 }
 
-int uvm_debugfs_api_preempt_task(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id) {
-    UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS schedule_params = {
-        .cmd = NVA06C_CTRL_CMD_GPFIFO_SCHEDULE,
-        .data = {
-            .NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS = {
-                .bEnable = false,
-                .bSkipSubmit = false,
-                .bSkipEnable = false
-            }
-        },
-        .dataSize = sizeof(NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS),
-        .rmStatus = 0
-    };
-    int error = 0;
+int uvm_debugfs_api_schedule_task(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, NvBool preempt) {
+    uvm_gpu_va_space_t *gpu_va_space;
+    uvm_user_channel_group_t *user_channel_group;
+    NV_STATUS status;
 
-    if (uvm_debugfs_api_ctrl_cmd_operate_gr_channel_group(&schedule_params, va_space, gpu_id) != NV_OK) {
-        error = -EINVAL;
-        goto out;
+    for_each_gpu_va_space(gpu_va_space, va_space) {
+        if (uvm_id_gpu_index(gpu_va_space->gpu->id) != uvm_id_gpu_index(gpu_id))
+            continue;
+
+        list_for_each_entry(user_channel_group, &gpu_va_space->registered_channel_groups, channel_group_node) {
+            if (user_channel_group->engine_type != UVM_GPU_CHANNEL_ENGINE_TYPE_GR) {
+                continue;
+            }
+
+            if (preempt) {
+                status = nvUvmInterfacePreemptChannelGroup(&user_channel_group->parent->uuid,
+                                                           user_channel_group->group_id,
+                                                           user_channel_group->runlist_id);
+            } else {
+                status = nvUvmInterfaceRescheduleChannelGroup(&user_channel_group->parent->uuid,
+                                                           user_channel_group->group_id,
+                                                           user_channel_group->runlist_id);
+            }
+            if (status != NV_OK) {
+                return status;
+            }
+        }
     }
 
-out:
-    return error;
-}
-
-int uvm_debugfs_api_reschedule_task(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id) {
-    UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS schedule_params = {
-        .cmd = NVA06C_CTRL_CMD_GPFIFO_SCHEDULE,
-        .data = {
-            .NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS = {
-                .bEnable = true,
-                .bSkipSubmit = false,
-                .bSkipEnable = false
-            }
-        },
-        .dataSize = sizeof(NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS),
-        .rmStatus = 0
-    };
-    int error = 0;
-
-    if (uvm_debugfs_api_ctrl_cmd_operate_gr_channel_group(&schedule_params, va_space, gpu_id) != NV_OK) {
-        error = -EINVAL;
-        goto out;
-    }
-
-out:
-    return error;
+    return NV_OK;
 }
 
 int uvm_debugfs_api_set_timeslice(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, size_t timeslice) {

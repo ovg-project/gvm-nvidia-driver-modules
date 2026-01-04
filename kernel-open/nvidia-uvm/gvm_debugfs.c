@@ -359,8 +359,7 @@ static ssize_t gvm_process_compute_freeze_write(struct file *file, const char __
         UVM_ASSERT(va_spaces[va_space_index]->gpu_cgroup != NULL);
         va_spaces[va_space_index]->gpu_cgroup[uvm_id_gpu_index(gpu_debugfs->gpu_id)].compute_freeze = freeze;
 
-        error = (freeze) ? uvm_debugfs_api_preempt_task(va_spaces[va_space_index], gpu_debugfs->gpu_id) :
-            uvm_debugfs_api_reschedule_task(va_spaces[va_space_index], gpu_debugfs->gpu_id);
+        error = uvm_debugfs_api_schedule_task(va_spaces[va_space_index], gpu_debugfs->gpu_id, freeze);
 
         if (error)
             break;

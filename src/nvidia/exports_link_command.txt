@@ -139,6 +139,8 @@
 --undefined=rm_gpu_ops_ccsl_log_encryption
 --undefined=rm_gpu_ops_ctrl_cmd_operate_channel_group
 --undefined=rm_gpu_ops_ctrl_cmd_operate_channel
+--undefined=rm_gpu_ops_preempt_channel_group
+--undefined=rm_gpu_ops_reschedule_channel_group
 --undefined=rm_kernel_rmapi_op
 --undefined=nv_get_hypervisor_type
 --undefined=nvlink_lib_initialize

@@ -347,5 +347,11 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannel(gpuRetainedChannel *retainedChannel,
                                         NvU32 cmd,
                                         NvP64 pParams,
                                         NvU32 dataSize);
+NV_STATUS nvGpuOpsPreemptChannelGroup(NvProcessorUuid *uuid,
+                                      NvU32 tsgId,
+                                      NvU32 runlistId);
+NV_STATUS nvGpuOpsRescheduleChannelGroup(NvProcessorUuid *uuid,
+                                         NvU32 tsgId,
+                                         NvU32 runlistId);
 
 #endif /* _NV_GPU_OPS_H_*/

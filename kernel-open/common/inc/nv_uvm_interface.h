@@ -1881,4 +1881,13 @@ NV_STATUS nvUvmInterfaceCtrlCmdOperateChannel(void *retainedChannel,
                                               NvU32 cmd,
                                               NvP64 pParams,
                                               NvU32 dataSize);
+
+NV_STATUS nvUvmInterfacePreemptChannelGroup(NvProcessorUuid *uuid,
+                                            NvU32 tsgId,
+                                            NvU32 runlistId);
+
+NV_STATUS nvUvmInterfaceRescheduleChannelGroup(NvProcessorUuid *uuid,
+                                               NvU32 tsgId,
+                                               NvU32 runlistId);
+
 #endif // _NV_UVM_INTERFACE_H_

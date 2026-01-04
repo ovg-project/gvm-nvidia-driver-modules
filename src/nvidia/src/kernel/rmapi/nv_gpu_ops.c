@@ -11360,8 +11360,8 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
                                              NvU32 dataSize)
 {
     NV_STATUS status = NV_OK;
-    OBJGPU *pGpu;
     RM_API *pRmApi = rmapiGetInterface(RMAPI_EXTERNAL_KERNEL);
+    OBJGPU *pGpu;
     KernelFifo *pKernelFifo;
     RsResourceRef *pResourceRef;
     KernelChannelGroup *pKernelChannelGroup;
@@ -11452,6 +11452,109 @@ NV_STATUS nvGpuOpsCtrlCmdOperateChannel(gpuRetainedChannel *retainedChannel,
                         pParams,
                         dataSize));
     os_get_current_time(&rmapiEndTimeSec, &rmapiEndTimeUSec);
+
+    return NV_OK;
+}
+
+static NV_STATUS getChannelHwState(RM_API *pRmApi, KernelChannel *pKernelChannel, NvU32 *state) {
+    NVB06F_CTRL_CHANNEL_HW_STATE_PARAMS params = { 0 };
+
+    if (!state)
+        return NV_ERR_INVALID_ARGUMENT;
+
+    NV_ASSERT_OK(
+        pRmApi->Control(pRmApi,
+                        RES_GET_CLIENT_HANDLE(pKernelChannel),
+                        RES_GET_HANDLE(pKernelChannel),
+                        NVB06F_CTRL_CMD_GET_CHANNEL_HW_STATE,
+                        &params,
+                        sizeof(NVB06F_CTRL_CHANNEL_HW_STATE_PARAMS)));
+
+    *state = params.state;
+
+    return NV_OK;
+}
+
+NV_STATUS nvGpuOpsPreemptChannelGroup(NvProcessorUuid *uuid,
+                                      NvU32 tsgId,
+                                      NvU32 runlistId)
+{
+    NV_STATUS status = NV_OK;
+    RM_API *pRmApi = rmapiGetInterface(RMAPI_EXTERNAL_KERNEL);
+    OBJGPU *pGpu;
+    KernelFifo *pKernelFifo;
+    RsResourceRef *pResourceRef;
+    KernelChannelGroup *pKernelChannelGroup;
+    KernelChannelGroupApi *pKernelChannelGroupApi;
+
+    pGpu = gpumgrGetGpuFromUuid(uuid->uuid,
+        DRF_DEF(2080_GPU_CMD, _GPU_GET_GID_FLAGS, _TYPE, _SHA1) |
+        DRF_DEF(2080_GPU_CMD, _GPU_GET_GID_FLAGS, _FORMAT, _BINARY));
+    if (!pGpu)
+        return NV_ERR_INVALID_ARGUMENT;
+
+    pKernelFifo = GPU_GET_KERNEL_FIFO(pGpu);
+    if (!pKernelFifo)
+        return NV_ERR_INVALID_OBJECT;
+
+    pKernelChannelGroup = kfifoGetChannelGroup(pGpu, pKernelFifo, tsgId, runlistId);
+    if (!pKernelChannelGroup)
+        return NV_ERR_INVALID_ARGUMENT;
+
+    pKernelChannelGroupApi = pKernelChannelGroup->pChanList->pHead->pKernelChannel->pKernelChannelGroupApi;
+    if (!pKernelChannelGroupApi)
+        return NV_ERR_INVALID_OBJECT;
+
+    // TODO: Acquired because serverutilGetResourceRef expects RMAPI lock. Necessary?
+    status = rmapiLockAcquire(RMAPI_LOCK_FLAGS_READ, RM_LOCK_MODULES_GPU_OPS);
+    if (status != NV_OK)
+        return status;
+    status = serverutilGetResourceRef(RES_GET_CLIENT_HANDLE(pKernelChannelGroupApi), RES_GET_HANDLE(pKernelChannelGroupApi), &pResourceRef);
+    rmapiLockRelease();
+    if (status != NV_OK)
+        return status;
+
+    return NV_OK;
+}
+
+NV_STATUS nvGpuOpsRescheduleChannelGroup(NvProcessorUuid *uuid,
+                                         NvU32 tsgId,
+                                         NvU32 runlistId)
+{
+    NV_STATUS status = NV_OK;
+    RM_API *pRmApi = rmapiGetInterface(RMAPI_EXTERNAL_KERNEL);
+    OBJGPU *pGpu;
+    KernelFifo *pKernelFifo;
+    RsResourceRef *pResourceRef;
+    KernelChannelGroup *pKernelChannelGroup;
+    KernelChannelGroupApi *pKernelChannelGroupApi;
+
+    pGpu = gpumgrGetGpuFromUuid(uuid->uuid,
+        DRF_DEF(2080_GPU_CMD, _GPU_GET_GID_FLAGS, _TYPE, _SHA1) |
+        DRF_DEF(2080_GPU_CMD, _GPU_GET_GID_FLAGS, _FORMAT, _BINARY));
+    if (!pGpu)
+        return NV_ERR_INVALID_ARGUMENT;
+
+    pKernelFifo = GPU_GET_KERNEL_FIFO(pGpu);
+    if (!pKernelFifo)
+        return NV_ERR_INVALID_OBJECT;
+
+    pKernelChannelGroup = kfifoGetChannelGroup(pGpu, pKernelFifo, tsgId, runlistId);
+    if (!pKernelChannelGroup)
+        return NV_ERR_INVALID_ARGUMENT;
+
+    pKernelChannelGroupApi = pKernelChannelGroup->pChanList->pHead->pKernelChannel->pKernelChannelGroupApi;
+    if (!pKernelChannelGroupApi)
+        return NV_ERR_INVALID_OBJECT;
+
+    // TODO: Acquired because serverutilGetResourceRef expects RMAPI lock. Necessary?
+    status = rmapiLockAcquire(RMAPI_LOCK_FLAGS_READ, RM_LOCK_MODULES_GPU_OPS);
+    if (status != NV_OK)
+        return status;
+    status = serverutilGetResourceRef(RES_GET_CLIENT_HANDLE(pKernelChannelGroupApi), RES_GET_HANDLE(pKernelChannelGroupApi), &pResourceRef);
+    rmapiLockRelease();
+    if (status != NV_OK)
+        return status;
 
     return NV_OK;
 }
