@@ -144,21 +144,14 @@ struct uvm_gpu_va_space_struct
 struct uvm_gpu_cgroup_struct
 {
     size_t memory_limit;
-    size_t memory_priority;
-    size_t memory_recommend;
     size_t memory_current;
     size_t memory_swap_current;
 
     size_t compute_priority;
     size_t compute_freeze;
-    size_t compute_realtime;
-    size_t compute_interleave_level;
-    size_t compute_current;
 
     atomic64_t nr_submitted_kernels;
     atomic64_t nr_ended_kernels;
-
-    __s64 signal_tv_sec;
 
     size_t registered_count;
 };

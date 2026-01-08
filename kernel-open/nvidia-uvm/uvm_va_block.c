@@ -2338,8 +2338,6 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
     uvm_va_space_t *va_space = uvm_va_block_get_va_space_maybe_dead(block);
     size_t rss = 0;
     size_t gmemcghigh = 0;
-    size_t rss_all = sum_gpu_memcg_current_all(gpu->id);
-    size_t gpu_all = gpu->mem_info.size;
     uvm_pmm_alloc_flags_t evict_flags = UVM_PMM_ALLOC_FLAGS_EVICT;
     uvm_gpu_chunk_t *gpu_chunk;
     struct task_struct *task;
@@ -2372,10 +2370,6 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
         }
         else {
             // Try allocating a new one without eviction
-            if (rss_all > (gpu_all * 8 / 10)) {
-                calculate_gpu_memcg_recommend_all(gpu->id);
-                signal_gpu_memcg_current_over_recommend_all(gpu->id);
-            }
             status = uvm_pmm_gpu_alloc_user_impl(&gpu->pmm, 1, size, UVM_PMM_ALLOC_FLAGS_NONE, (task) ? task->pid : 0, &gpu_chunk, &retry->tracker);
         }
 
