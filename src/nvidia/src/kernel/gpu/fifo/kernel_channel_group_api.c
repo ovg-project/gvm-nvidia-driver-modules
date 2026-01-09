@@ -1394,7 +1394,7 @@ kchangrpapiCtrlCmdSetInterleaveLevel_IMPL
                   pResourceRef->externalClassId);
     }
     NV_ASSERT_OR_RETURN((pClass != NULL), NV_ERR_NOT_SUPPORTED);
-        
+
     if (IS_VIRTUAL(pGpu) || IS_GSP_CLIENT(pGpu))
     {
         CALL_CONTEXT *pCallContext = resservGetTlsCallContext();
