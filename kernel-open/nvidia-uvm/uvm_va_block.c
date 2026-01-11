@@ -184,9 +184,9 @@ int uvm_debugfs_api_charge_gpu_memory_limit(uvm_va_space_t *va_space, uvm_gpu_id
     if (current_value <= limit_value)
         return 0;
 
-    uvm_down_read(&va_space->lock);
+    uvm_down_write(&va_space->lock);
     uvm_va_space_evict_size(va_space, gpu, current_value - limit_value);
-    uvm_up_read(&va_space->lock);
+    uvm_up_write(&va_space->lock);
 
     return 0;
 }
@@ -2202,8 +2202,8 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
     NV_STATUS status = NV_OK;
     uvm_va_space_t *va_space = uvm_va_block_get_va_space_maybe_dead(block);
     uvm_pmm_alloc_flags_t evict_flags = UVM_PMM_ALLOC_FLAGS_EVICT;
+    struct task_struct *task = NULL;
     uvm_gpu_chunk_t *gpu_chunk;
-    struct task_struct *task;
 
     if (va_space && va_space->va_space_mm.mm)
         task = va_space->va_space_mm.mm->owner;
@@ -2217,7 +2217,7 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
             --block_test->user_pages_allocation_retry_force_count;
             status = NV_ERR_NO_MEMORY;
         }
-        else if (get_gpu_memcg_current(va_space, gpu->id) > get_gpu_memcg_limit(va_space, gpu->id)) {
+        else if (va_space && get_gpu_memcg_current(va_space, gpu->id) > get_gpu_memcg_limit(va_space, gpu->id)) {
             evict_flags |= UVM_PMM_ALLOC_FLAGS_EVICT_FORCE;
             status = NV_ERR_NO_MEMORY;
         }

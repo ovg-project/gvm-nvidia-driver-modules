@@ -111,6 +111,7 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
     UvmGpuChannelInstanceInfo *channel_info = NULL;
     uvm_user_channel_t *user_channel = NULL;
     uvm_user_channel_group_t *user_channel_group = NULL;
+    NvBool user_channel_group_allocated = NV_FALSE;
     NV_STATUS status = NV_OK;
     NvU32 rm_client = user_rm_channel->user_client;
     NvU32 rm_channel = user_rm_channel->user_object;
@@ -207,15 +208,18 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
             goto error;
         if (!user_channel_group) {
             user_channel_group = uvm_kvmalloc_zero(sizeof(*user_channel_group));
+            if (!user_channel_group) {
+                status = NV_ERR_NO_MEMORY;
+                goto error;
+            }
+
             user_channel_group->parent = gpu->parent;
             user_channel_group->group_id = user_channel->tsg.id;
             user_channel_group->runlist_id = user_channel->hw_runlist_id;
             user_channel_group->engine_type = user_channel->engine_type;
-            list_add(&user_channel_group->channel_group_node, &user_channel->gpu_va_space->registered_channel_groups);
-            INIT_LIST_HEAD(&user_channel_group->channel_head);
+
+            user_channel_group_allocated = NV_TRUE;
         }
-        UVM_ASSERT(user_channel->engine_type == user_channel_group->engine_type);
-        list_add(&user_channel->channel_node, &user_channel_group->channel_head);
     }
 
     // If num_resources == 0, as can happen with CE channels, we ignore base and
@@ -228,6 +232,15 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
     status = get_rm_channel_resources(user_channel, channel_info);
     if (status != NV_OK)
         goto error;
+
+    if (user_channel->tsg.valid) {
+        if (user_channel_group_allocated) {
+            list_add(&user_channel_group->channel_group_node, &user_channel->gpu_va_space->registered_channel_groups);
+            INIT_LIST_HEAD(&user_channel_group->channel_head);
+        }
+        UVM_ASSERT(user_channel->engine_type == user_channel_group->engine_type);
+        list_add(&user_channel->channel_node, &user_channel_group->channel_head);
+    }
 
     uvm_kvfree(channel_info);
 

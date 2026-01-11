@@ -211,6 +211,7 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
 {
     NV_STATUS status;
     uvm_va_space_t *va_space = uvm_kvmalloc_zero(sizeof(*va_space));
+    NvBool gcgroup_allocated = NV_FALSE;
     uvm_gpu_id_t gpu_id;
 
     *va_space_ptr = NULL;
@@ -226,13 +227,17 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
     va_space->pid = current->pid;
 
     // Create debugfs directory for this process
-    if (uvm_init_gpu_cgroup(va_space) && va_space->gpu_cgroup)
+    if (uvm_init_gpu_cgroup(va_space) && va_space->gpu_cgroup) {
         gvm_debugfs_create_process_dir(va_space->pid);
+        gcgroup_allocated = NV_TRUE;
+    }
+
+    if (!va_space->gpu_cgroup) {
+        status = NV_ERR_NO_MEMORY;
+        goto fail;
+    }
 
     atomic64_set(&va_space->num_debugfs_refs, 0);
-
-    if (!va_space->gpu_cgroup)
-        return NV_ERR_NO_MEMORY;
 
     uvm_init_rwsem(&va_space->lock, UVM_LOCK_ORDER_VA_SPACE);
     uvm_mutex_init(&va_space->closest_processors.mask_mutex, UVM_LOCK_ORDER_LEAF);
@@ -286,20 +291,20 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
     va_space->va_block_context = uvm_va_block_context_alloc(NULL);
     if (!va_space->va_block_context) {
         status = NV_ERR_NO_MEMORY;
-        goto fail;
+        goto fail_gcgroup;
     }
 
     status = uvm_perf_init_va_space_events(va_space, &va_space->perf_events);
     if (status != NV_OK)
-        goto fail;
+        goto fail_gcgroup;
 
     status = uvm_perf_heuristics_load(va_space);
     if (status != NV_OK)
-        goto fail;
+        goto fail_gcgroup;
 
     status = uvm_gpu_init_va_space(va_space);
     if (status != NV_OK)
-        goto fail;
+        goto fail_gcgroup;
 
     UVM_ASSERT(va_space_check_processors_masks(va_space));
 
@@ -307,7 +312,7 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
 
     status = uvm_va_space_mm_register(va_space);
     if (status != NV_OK)
-        goto fail;
+        goto fail_gcgroup;
 
     uvm_hmm_va_space_initialize(va_space);
 
@@ -322,6 +327,9 @@ NV_STATUS uvm_va_space_create(struct address_space *mapping, uvm_va_space_t **va
 
     return NV_OK;
 
+fail_gcgroup:
+    if (gcgroup_allocated)
+        uvm_kvfree(va_space->gpu_cgroup);
 fail:
     uvm_perf_heuristics_unload(va_space);
     uvm_perf_destroy_va_space_events(&va_space->perf_events);
