@@ -744,6 +744,9 @@ static NV_STATUS _gpuRmApiControl
     }
     else
     {
+        if (cmd == NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL) {
+            NV_PRINTF(LEVEL_ERROR, "Call with pInternalRmApi\n");
+        }
         RM_API *pInternalRmApi = rmapiGetInterface(RMAPI_GPU_LOCK_INTERNAL);
         NV_ASSERT_OR_RETURN(rmDeviceGpuLockIsOwner(pGpu->gpuInstance),
             NV_ERR_INVALID_LOCK_STATE);
@@ -6261,7 +6264,7 @@ _gpuRefreshRecoveryActionInLock
     NvBool                           bDrainAndReset;
     NV2080_CTRL_GPU_RECOVERY_ACTION  newAction;
     NV2080_CTRL_GPU_RECOVERY_ACTION  oldAction;
-    
+
     if (pGpu == NULL)
     {
         // Call-back is too late. pGpu is already NULL

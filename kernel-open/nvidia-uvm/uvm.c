@@ -21,12 +21,16 @@
 
 *******************************************************************************/
 
+#include <linux/file.h>
+
+#include "nv_uvm_interface.h"
 #include "uvm_api.h"
 #include "uvm_global.h"
 #include "uvm_gpu_replayable_faults.h"
 #include "uvm_tools_init.h"
 #include "uvm_lock.h"
 #include "uvm_test.h"
+#include "uvm_user_channel.h"
 #include "uvm_va_space.h"
 #include "uvm_va_space_mm.h"
 #include "uvm_va_range.h"
@@ -39,6 +43,10 @@
 #include "uvm_mem.h"
 #include "uvm_kvmalloc.h"
 #include "uvm_test_file.h"
+
+// [GVM]
+#include "uvm_debugfs_api.h"
+#include "gvm_debugfs.h"
 
 #define NVIDIA_UVM_DEVICE_NAME          "nvidia-uvm"
 
@@ -1016,6 +1024,147 @@ static NV_STATUS uvm_api_pageable_mem_access(UVM_PAGEABLE_MEM_ACCESS_PARAMS *par
     return NV_OK;
 }
 
+static NV_STATUS uvm_api_is_initialized(UVM_IS_INITIALIZED_PARAMS *params, struct file *filp)
+{
+    uvm_va_space_t *va_space = uvm_fd_va_space(filp);
+
+    if (!va_space) {
+        params->initialized = false;
+        return NV_OK;
+    }
+
+    params->initialized = (uvm_va_space_get_gpu_by_uuid(va_space, &params->uuid) != NULL);
+    return NV_OK;
+}
+
+static NV_STATUS uvm_api_update_event_count(UVM_UPDATE_EVENT_COUNT_PARAMS *params, struct file *filp)
+{
+    uvm_va_space_t *va_space = uvm_va_space_get(filp);
+    uvm_gpu_t *gpu;
+
+    if (!va_space) {
+        printk(KERN_ERR "Failed to find va_space\n");
+        return NV_ERR_INVALID_ARGUMENT;
+    }
+
+    gpu = uvm_va_space_get_gpu_by_uuid(va_space, &params->uuid);
+    if (!gpu) {
+        return NV_ERR_INVALID_ARGUMENT;
+    }
+
+    return gvm_update_event_count(params, va_space, gpu->id);
+}
+
+static NV_STATUS uvm_debugfs_api_ctrl_cmd_operate_gr_channel_group(UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS *params, uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id) {
+    uvm_gpu_va_space_t *gpu_va_space;
+    uvm_user_channel_group_t *user_channel_group;
+    NV_STATUS status;
+
+    for_each_gpu_va_space(gpu_va_space, va_space) {
+        if (uvm_id_gpu_index(gpu_va_space->gpu->id) != uvm_id_gpu_index(gpu_id))
+            continue;
+
+        list_for_each_entry(user_channel_group, &gpu_va_space->registered_channel_groups, channel_group_node) {
+            if (user_channel_group->engine_type != UVM_GPU_CHANNEL_ENGINE_TYPE_GR) {
+                continue;
+            }
+
+            status = nvUvmInterfaceCtrlCmdOperateChannelGroup(&user_channel_group->parent->uuid,
+                                                     user_channel_group->group_id,
+                                                     user_channel_group->runlist_id,
+                                                     params->cmd,
+                                                     &params->data,
+                                                     params->dataSize);
+            if (status != NV_OK) {
+                return status;
+            }
+        }
+    }
+
+    return NV_OK;
+}
+
+__attribute__((unused))
+static NV_STATUS uvm_debugfs_api_ctrl_cmd_operate_gr_channel(UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS *params, uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id) {
+    uvm_gpu_va_space_t *gpu_va_space;
+    uvm_user_channel_t *user_channel;
+    NV_STATUS status;
+
+    for_each_gpu_va_space(gpu_va_space, va_space) {
+        if (uvm_id_gpu_index(gpu_va_space->gpu->id) != uvm_id_gpu_index(gpu_id))
+            continue;
+
+        list_for_each_entry(user_channel, &gpu_va_space->registered_channels, list_node) {
+            if (user_channel->engine_type != UVM_GPU_CHANNEL_ENGINE_TYPE_GR) {
+                continue;
+            }
+
+            status = nvUvmInterfaceCtrlCmdOperateChannel(user_channel->rm_retained_channel,
+                                                     params->cmd,
+                                                     &params->data,
+                                                     params->dataSize);
+            if (status != NV_OK) {
+                return status;
+            }
+        }
+    }
+
+    return NV_OK;
+}
+
+int uvm_debugfs_api_schedule_task(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, NvBool preempt) {
+    uvm_gpu_va_space_t *gpu_va_space;
+    uvm_user_channel_group_t *user_channel_group;
+    NV_STATUS status;
+
+    for_each_gpu_va_space(gpu_va_space, va_space) {
+        if (uvm_id_gpu_index(gpu_va_space->gpu->id) != uvm_id_gpu_index(gpu_id))
+            continue;
+
+        list_for_each_entry(user_channel_group, &gpu_va_space->registered_channel_groups, channel_group_node) {
+            if (user_channel_group->engine_type != UVM_GPU_CHANNEL_ENGINE_TYPE_GR) {
+                continue;
+            }
+
+            if (preempt) {
+                status = nvUvmInterfacePreemptChannelGroup(gpu_va_space->duped_gpu_va_space,
+                                                           &user_channel_group->parent->uuid,
+                                                           user_channel_group->group_id,
+                                                           user_channel_group->runlist_id);
+            } else {
+                status = nvUvmInterfaceRescheduleChannelGroup(gpu_va_space->duped_gpu_va_space,
+                                                              &user_channel_group->parent->uuid,
+                                                              user_channel_group->group_id,
+                                                              user_channel_group->runlist_id);
+            }
+            if (status != NV_OK) {
+                return status;
+            }
+        }
+    }
+
+    return NV_OK;
+}
+
+int uvm_debugfs_api_set_timeslice(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, size_t timeslice) {
+    UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS params = {
+        .cmd = NVA06C_CTRL_CMD_SET_TIMESLICE,
+        .data = {
+            .NVA06C_CTRL_TIMESLICE_PARAMS = {
+                .timesliceUs = timeslice
+            }
+        },
+        .dataSize = sizeof(NVA06C_CTRL_TIMESLICE_PARAMS),
+        .rmStatus = 0
+    };
+    int error = 0;
+
+    if (uvm_debugfs_api_ctrl_cmd_operate_gr_channel_group(&params, va_space, gpu_id) != NV_OK)
+        error = -EINVAL;
+
+    return error;
+}
+
 static long uvm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
     switch (cmd)
@@ -1068,6 +1217,8 @@ static long uvm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_TOOLS_GET_PROCESSOR_UUID_TABLE_V2,uvm_api_tools_get_processor_uuid_table_v2);
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_ALLOC_DEVICE_P2P,               uvm_api_alloc_device_p2p);
         UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_CLEAR_ALL_ACCESS_COUNTERS,      uvm_api_clear_all_access_counters);
+        UVM_ROUTE_CMD_STACK_NO_INIT_CHECK(UVM_IS_INITIALIZED,              uvm_api_is_initialized);
+        UVM_ROUTE_CMD_STACK_INIT_CHECK(UVM_UPDATE_EVENT_COUNT,              uvm_api_update_event_count);
     }
 
     // Try the test ioctls if none of the above matched
@@ -1211,6 +1362,13 @@ static int uvm_init(void)
         goto error;
     }
 
+    // [GVM] Initialize debugfs interface for GPU process control
+    ret = gvm_debugfs_init();
+    if (ret != 0) {
+        UVM_ERR_PRINT("gvm_debugfs_init() failed: %d\n", ret);
+        // Don't fail module load if debugfs fails, just warn
+    }
+
     if (uvm_enable_builtin_tests)
         UVM_INFO_PRINT("Built-in UVM tests are enabled. This is a security risk.\n");
 
@@ -1235,6 +1393,8 @@ static int __init uvm_init_entry(void)
 
 static void uvm_exit(void)
 {
+    // [GVM] Exit debugfs interface for GPU process control
+    gvm_debugfs_exit();
     uvm_tools_exit();
     uvm_chardev_exit();
 

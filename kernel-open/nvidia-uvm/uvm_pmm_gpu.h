@@ -154,7 +154,9 @@ typedef enum
     // Do not use batching in this call if PMA page allocation is required
     UVM_PMM_ALLOC_FLAGS_DONT_BATCH = (1 << 1),
 
-    UVM_PMM_ALLOC_FLAGS_MASK = (1 << 2) - 1
+    UVM_PMM_ALLOC_FLAGS_EVICT_FORCE = (1 << 2),
+
+    UVM_PMM_ALLOC_FLAGS_MASK = (1 << 3) - 1
 } uvm_pmm_alloc_flags_t;
 
 typedef enum
@@ -290,6 +292,8 @@ struct uvm_gpu_chunk_struct
     // chunk is unpinned or freed.
     struct list_head list;
 
+    struct list_head list_global;
+
     // The VA block using the chunk, if any.
     // User chunks that are not backed by a VA block are considered to be
     // temporarily pinned and cannot be evicted.
@@ -351,8 +355,11 @@ typedef struct uvm_pmm_gpu_struct
         // uvm_pmm_gpu_mark_root_chunk_(un)used().
         struct list_head va_block_unused;
 
-        // List of root chunks used by VA blocks
+        // List of root chunks used by VA blocks grouped by pid
         struct list_head va_block_used;
+
+        // List of root chunks used by VA blocks in global
+        struct list_head va_block_used_global;
 
         // List of chunks needing to be lazily freed and a queue for processing
         // the list. TODO: Bug 3881835: revisit whether to use nv_kthread_q_t
@@ -455,6 +462,14 @@ NV_STATUS uvm_pmm_gpu_alloc_user(uvm_pmm_gpu_t *pmm,
                                  uvm_gpu_chunk_t **chunks,
                                  uvm_tracker_t *out_tracker);
 
+NV_STATUS uvm_pmm_gpu_alloc_user_impl(uvm_pmm_gpu_t *pmm,
+                                      size_t num_chunks,
+                                      uvm_chunk_size_t chunk_size,
+                                      uvm_pmm_alloc_flags_t flags,
+                                      pid_t pid,
+                                      uvm_gpu_chunk_t **chunks,
+                                      uvm_tracker_t *out_tracker);
+
 // Kernel memory allocator.
 //
 // See uvm_pmm_gpu_alloc_user documentation for details on the behavior of this
@@ -551,10 +566,12 @@ void uvm_pmm_gpu_mark_chunk_evicted(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
 // If the chunk is pinned or selected for eviction, this won't do anything. The
 // chunk can be pinned when it's being initially populated by the VA block.
 // Allow that state to make this API easy to use for the caller.
-void uvm_pmm_gpu_mark_root_chunk_used(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
+void uvm_pmm_gpu_mark_root_chunk_used(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk, uvm_va_block_t *block);
 
 // Mark an allocated user chunk as unused
 void uvm_pmm_gpu_mark_root_chunk_unused(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
+
+void free_chunk(uvm_pmm_gpu_t *pmm, uvm_gpu_chunk_t *chunk);
 
 static bool uvm_gpu_chunk_same_root(uvm_gpu_chunk_t *chunk1, uvm_gpu_chunk_t *chunk2)
 {

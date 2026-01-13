@@ -3,3 +3,9 @@
 *.o.cmd
 *.o.d
 _out/
+
+
+**/.cache/
+**/.claude/
+compile_commands.json
+**/.clang-format

@@ -228,6 +228,7 @@ NV_STATUS uvm_va_block_migrate_locked(uvm_va_block_t *va_block,
                                       uvm_va_block_region_t region,
                                       uvm_processor_id_t dest_id,
                                       uvm_migrate_mode_t mode,
+                                      NvBool eviction,
                                       uvm_tracker_t *out_tracker)
 {
     uvm_va_space_t *va_space = uvm_va_block_get_va_space(va_block);
@@ -268,7 +269,7 @@ NV_STATUS uvm_va_block_migrate_locked(uvm_va_block_t *va_block,
                                                 region,
                                                 NULL,
                                                 NULL,
-                                                UVM_MAKE_RESIDENT_CAUSE_API_MIGRATE);
+                                                (eviction) ? UVM_MAKE_RESIDENT_CAUSE_EVICTION : UVM_MAKE_RESIDENT_CAUSE_API_MIGRATE);
         }
     }
 
@@ -493,6 +494,7 @@ static NV_STATUS uvm_va_range_migrate_multi_block(uvm_va_range_managed_t *manage
                                                                      region,
                                                                      dest_id,
                                                                      mode,
+                                                                     false,
                                                                      out_tracker));
         if (status != NV_OK)
             return status;

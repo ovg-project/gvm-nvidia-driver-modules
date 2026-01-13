@@ -767,6 +767,7 @@ static NV_STATUS hmm_migrate_range(uvm_va_block_t *va_block,
                                                                        region,
                                                                        dest_id,
                                                                        mode,
+                                                                       false,
                                                                        out_tracker));
         if (status != NV_OK)
             break;

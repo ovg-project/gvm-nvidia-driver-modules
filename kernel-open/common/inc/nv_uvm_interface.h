@@ -1869,4 +1869,27 @@ NV_STATUS nvUvmInterfaceCslIncrementIv(UvmCslContext *uvmCslContext,
 NV_STATUS nvUvmInterfaceCslLogEncryption(UvmCslContext *uvmCslContext,
                                          UvmCslOperation operation,
                                          NvU32 bufferSize);
+
+NV_STATUS nvUvmInterfaceCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
+                                                   NvU32 tsgId,
+                                                   NvU32 runlistId,
+                                                   NvU32 cmd,
+                                                   NvP64 pParams,
+                                                   NvU32 dataSize);
+
+NV_STATUS nvUvmInterfaceCtrlCmdOperateChannel(void *retainedChannel,
+                                              NvU32 cmd,
+                                              NvP64 pParams,
+                                              NvU32 dataSize);
+
+NV_STATUS nvUvmInterfacePreemptChannelGroup(uvmGpuAddressSpaceHandle vaSpace,
+                                            NvProcessorUuid *uuid,
+                                            NvU32 tsgId,
+                                            NvU32 runlistId);
+
+NV_STATUS nvUvmInterfaceRescheduleChannelGroup(uvmGpuAddressSpaceHandle vaSpace,
+                                               NvProcessorUuid *uuid,
+                                               NvU32 tsgId,
+                                               NvU32 runlistId);
+
 #endif // _NV_UVM_INTERFACE_H_

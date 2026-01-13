@@ -56,6 +56,16 @@ typedef struct
     uvm_rb_tree_node_t node;
 } uvm_user_channel_subctx_info_t;
 
+struct uvm_user_channel_group_struct
+{
+    uvm_parent_gpu_t *parent;
+    NvU32 group_id;
+    NvU32 runlist_id;
+    UVM_GPU_CHANNEL_ENGINE_TYPE engine_type;
+    struct list_head channel_group_node;
+    struct list_head channel_head;
+};
+
 struct uvm_user_channel_struct
 {
     // Parent GPU VA space
@@ -82,6 +92,8 @@ struct uvm_user_channel_struct
 
     // Type of the engine the channel is bound to
     UVM_GPU_CHANNEL_ENGINE_TYPE engine_type;
+
+    NvU32 hw_engine_type;
 
     // true if the channel belongs to a subcontext or false if the channel
     // belongs to a regular context
@@ -179,6 +191,9 @@ struct uvm_user_channel_struct
     // Node in the owning gpu_va_space's registered_channels list. Cleared once
     // the channel is detached.
     struct list_head list_node;
+
+    // Node in the owning channel_group's channel_head list.
+    struct list_head channel_node;
 
     // Boolean which is set during the window between
     // nvUvmInterfaceBindChannelResources and nvUvmInterfaceStopChannel. This is

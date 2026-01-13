@@ -115,6 +115,8 @@ struct uvm_gpu_va_space_struct
     // List of all uvm_user_channel_t's under this GPU VA space
     struct list_head registered_channels;
 
+    struct list_head registered_channel_groups;
+
     // List of all channel ranges under this GPU VA space. Used at channel
     // registration time to find shareable VA ranges without having to iterate
     // through all VA ranges in the VA space.
@@ -137,6 +139,21 @@ struct uvm_gpu_va_space_struct
 
     // ATS specific state
     uvm_ats_gpu_va_space_t ats;
+};
+
+struct uvm_gpu_cgroup_struct
+{
+    size_t memory_limit;
+    atomic64_t memory_current;
+    atomic64_t memory_swap_current;
+
+    size_t compute_priority;
+    size_t compute_freeze;
+
+    atomic64_t nr_submitted_kernels;
+    atomic64_t nr_ended_kernels;
+
+    size_t registered_count;
 };
 
 typedef struct
@@ -185,6 +202,9 @@ typedef struct
 
 struct uvm_va_space_struct
 {
+    // Process ID that owns this VA space (for debugfs tracking)
+    pid_t pid;
+
     // Mask of gpus registered with the va space
     uvm_processor_mask_t registered_gpus;
 
@@ -228,6 +248,8 @@ struct uvm_va_space_struct
 
     // Monotonically increasing counter for range groups IDs
     atomic64_t range_group_id_counter;
+
+    atomic64_t num_debugfs_refs;
 
     // Range groups
     struct radix_tree_root range_groups;
@@ -334,6 +356,9 @@ struct uvm_va_space_struct
 
     // Array of GPU VA spaces
     uvm_gpu_va_space_t *gpu_va_spaces[UVM_ID_MAX_GPUS];
+
+    // A pointer to a [UVM_ID_MAX_GPUS] array whose element is uvm_gpu_cgroup_t
+    uvm_gpu_cgroup_t *gpu_cgroup;
 
     // Tracking of GPU VA spaces which have dropped the VA space lock and are
     // pending destruction. uvm_va_space_mm_shutdown has to wait for those

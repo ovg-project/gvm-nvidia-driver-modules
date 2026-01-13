@@ -343,5 +343,23 @@ NV_STATUS nvGpuOpsIncrementIv(struct ccslContext_t *ctx,
 NV_STATUS nvGpuOpsLogEncryption(struct ccslContext_t *ctx,
                                 NvU8 direction,
                                 NvU32 bufferSize);
+NV_STATUS nvGpuOpsCtrlCmdOperateChannelGroup(NvProcessorUuid *uuid,
+                                             NvU32 tsgId,
+                                             NvU32 runlistId,
+                                             NvU32 cmd,
+                                             NvP64 pParams,
+                                             NvU32 dataSize);
+NV_STATUS nvGpuOpsCtrlCmdOperateChannel(gpuRetainedChannel *retainedChannel,
+                                        NvU32 cmd,
+                                        NvP64 pParams,
+                                        NvU32 dataSize);
+NV_STATUS nvGpuOpsPreemptChannelGroup(struct gpuAddressSpace *vaSpace,
+                                      NvProcessorUuid *uuid,
+                                      NvU32 tsgId,
+                                      NvU32 runlistId);
+NV_STATUS nvGpuOpsRescheduleChannelGroup(struct gpuAddressSpace *vaSpace,
+                                         NvProcessorUuid *uuid,
+                                         NvU32 tsgId,
+                                         NvU32 runlistId);
 
 #endif /* _NV_GPU_OPS_H_*/

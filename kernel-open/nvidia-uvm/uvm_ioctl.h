@@ -1121,6 +1121,66 @@ typedef struct
     NV_STATUS       rmStatus; // OUT
 } UVM_CLEAR_ALL_ACCESS_COUNTERS_PARAMS;
 
+#define UVM_IS_INITIALIZED                                            UVM_IOCTL_BASE(80)
+typedef struct
+{
+    NvProcessorUuid uuid;         // IN
+    NvBool          initialized; // OUT
+    NV_STATUS       rmStatus;    // OUT
+} UVM_IS_INITIALIZED_PARAMS;
+
+typedef struct {
+    NvU64       timesliceUs;
+} NVA06C_CTRL_TIMESLICE_PARAMS;
+#define NVA06C_CTRL_CMD_SET_TIMESLICE (0xa06c0103)
+#define NVA06C_CTRL_CMD_GET_TIMESLICE (0xa06c0104)
+
+typedef struct
+{
+    NvU32           cmd;                  // IN
+    union {
+        NVA06C_CTRL_TIMESLICE_PARAMS NVA06C_CTRL_TIMESLICE_PARAMS;
+    } data;
+    NvU32           dataSize;             // IN
+    NV_STATUS       rmStatus;             // OUT
+} UVM_CTRL_CMD_OPERATE_CHANNEL_GROUP_PARAMS;
+
+typedef struct
+{
+    NvU32               cmd;                    // IN
+    union {
+		NvU32           __unused;
+    } data;
+    NvU32               dataSize;               // IN
+    NV_STATUS           rmStatus;               // OUT
+} UVM_CTRL_CMD_OPERATE_CHANNEL_PARAMS;
+
+typedef enum
+{
+    UVM_SUBMIT_KERNEL_EVENT = 0,
+    UVM_END_KERNEL_EVENT,
+
+    UVM_EVENT_TYPE_COUNT
+} UVM_EVENT_TYPE;
+
+typedef enum {
+    UVM_ADD_EVENT_COUNT = 0,
+    UVM_SET_EVENT_COUNT,
+
+    UVM_UPDATE_EVENT_COUNT_TYPE_COUNT
+} UVM_UPDATE_EVENT_COUNT_TYPE;
+
+#define UVM_UPDATE_EVENT_COUNT                                        UVM_IOCTL_BASE(81)
+typedef struct
+{
+    NvProcessorUuid uuid;
+    UVM_EVENT_TYPE type;
+    UVM_UPDATE_EVENT_COUNT_TYPE op;
+    NvU64 value;
+
+    NV_STATUS rmStatus;
+} UVM_UPDATE_EVENT_COUNT_PARAMS;
+
 //
 // Temporary ioctls which should be removed before UVM 8 release
 // Number backwards from 2047 - highest custom ioctl function number

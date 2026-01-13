@@ -37,6 +37,7 @@
 
 #include <linux/pid.h>
 #include <linux/pid_namespace.h>
+#include <linux/kallsyms.h>
 #if defined(CONFIG_LOCKDEP)
 #include <linux/lockdep.h>
 #endif // CONFIG_LOCKDEP

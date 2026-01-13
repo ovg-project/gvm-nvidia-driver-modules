@@ -227,6 +227,9 @@ typedef struct UvmGpuChannelInstanceInfo_tag
     // Out: Type of the engine the channel is bound to
     NvU32 channelEngineType;
 
+    // Out: Hw type of the engine the channel is bound to
+    NvU32 hwChannelEngineType;
+
     // Out: Channel handle to be used in the CLEAR_FAULTED method
     NvU32 clearFaultedToken;
 

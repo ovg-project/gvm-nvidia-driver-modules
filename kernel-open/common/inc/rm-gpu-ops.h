@@ -115,5 +115,9 @@ NV_STATUS  NV_API_CALL rm_gpu_ops_ccsl_sign(nvidia_stack_t *, struct ccslContext
 NV_STATUS  NV_API_CALL rm_gpu_ops_ccsl_query_message_pool(nvidia_stack_t *, struct ccslContext_t *, NvU8, NvU64 *);
 NV_STATUS  NV_API_CALL rm_gpu_ops_ccsl_increment_iv(nvidia_stack_t *, struct ccslContext_t *, NvU8, NvU64, NvU8 *);
 NV_STATUS  NV_API_CALL rm_gpu_ops_ccsl_log_encryption(nvidia_stack_t *, struct ccslContext_t *, NvU8, NvU32);
+NV_STATUS  NV_API_CALL rm_gpu_ops_ctrl_cmd_operate_channel_group(nvidia_stack_t *, NvProcessorUuid *, NvU32, NvU32, NvU32, NvP64, NvU32);
+NV_STATUS  NV_API_CALL rm_gpu_ops_ctrl_cmd_operate_channel(nvidia_stack_t *, void *, NvU32, NvP64, NvU32);
+NV_STATUS  NV_API_CALL rm_gpu_ops_preempt_channel_group(nvidia_stack_t *, gpuAddressSpaceHandle, NvProcessorUuid *, NvU32, NvU32);
+NV_STATUS  NV_API_CALL rm_gpu_ops_reschedule_channel_group(nvidia_stack_t *, gpuAddressSpaceHandle, NvProcessorUuid *, NvU32, NvU32);
 
 #endif

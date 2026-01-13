@@ -89,6 +89,18 @@ static NV_STATUS get_rm_channel_resources(uvm_user_channel_t *user_channel, UvmG
     return NV_OK;
 }
 
+static NV_STATUS try_get_uvm_user_channel_group(uvm_gpu_va_space_t *gpu_va_space, NvU32 group_id, uvm_user_channel_group_t **out_channel_group)
+{
+    uvm_user_channel_group_t *user_channel_group;
+    list_for_each_entry(user_channel_group, &gpu_va_space->registered_channel_groups, channel_group_node) {
+        if (user_channel_group->group_id == group_id) {
+            *out_channel_group = user_channel_group;
+            break;
+        }
+    }
+    return NV_OK;
+}
+
 static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
                                          const NvProcessorUuid *uuid,
                                          uvm_rm_user_object_t *user_rm_channel,
@@ -98,6 +110,8 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
 {
     UvmGpuChannelInstanceInfo *channel_info = NULL;
     uvm_user_channel_t *user_channel = NULL;
+    uvm_user_channel_group_t *user_channel_group = NULL;
+    NvBool user_channel_group_allocated = NV_FALSE;
     NV_STATUS status = NV_OK;
     NvU32 rm_client = user_rm_channel->user_client;
     NvU32 rm_channel = user_rm_channel->user_object;
@@ -163,6 +177,7 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
     user_channel->hw_channel_id             = channel_info->chId;
     user_channel->num_resources             = channel_info->resourceCount;
     user_channel->engine_type               = channel_info->channelEngineType;
+    user_channel->hw_engine_type            = channel_info->hwChannelEngineType;
     user_channel->in_subctx                 = channel_info->bInSubctx == NV_TRUE;
     user_channel->subctx_id                 = channel_info->subctxId;
     user_channel->tsg.valid                 = channel_info->bTsgChannel == NV_TRUE;
@@ -186,8 +201,26 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
         UVM_ASSERT(user_channel->subctx_id < user_channel->tsg.max_subctx_count);
     }
 
-    if (user_channel->tsg.valid)
+    if (user_channel->tsg.valid) {
         UVM_ASSERT(user_channel->tsg.max_subctx_count <= gpu->max_subcontexts);
+        status = try_get_uvm_user_channel_group(user_channel->gpu_va_space, user_channel->tsg.id, &user_channel_group);
+        if (status != NV_OK)
+            goto error;
+        if (!user_channel_group) {
+            user_channel_group = uvm_kvmalloc_zero(sizeof(*user_channel_group));
+            if (!user_channel_group) {
+                status = NV_ERR_NO_MEMORY;
+                goto error;
+            }
+
+            user_channel_group->parent = gpu->parent;
+            user_channel_group->group_id = user_channel->tsg.id;
+            user_channel_group->runlist_id = user_channel->hw_runlist_id;
+            user_channel_group->engine_type = user_channel->engine_type;
+
+            user_channel_group_allocated = NV_TRUE;
+        }
+    }
 
     // If num_resources == 0, as can happen with CE channels, we ignore base and
     // length.
@@ -199,6 +232,15 @@ static NV_STATUS uvm_user_channel_create(uvm_va_space_t *va_space,
     status = get_rm_channel_resources(user_channel, channel_info);
     if (status != NV_OK)
         goto error;
+
+    if (user_channel->tsg.valid) {
+        if (user_channel_group_allocated) {
+            list_add(&user_channel_group->channel_group_node, &user_channel->gpu_va_space->registered_channel_groups);
+            INIT_LIST_HEAD(&user_channel_group->channel_head);
+        }
+        UVM_ASSERT(user_channel->engine_type == user_channel_group->engine_type);
+        list_add(&user_channel->channel_node, &user_channel_group->channel_head);
+    }
 
     uvm_kvfree(channel_info);
 

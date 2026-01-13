@@ -43,6 +43,7 @@
 #include "uvm_test_ioctl.h"
 #include "uvm_va_policy.h"
 #include "uvm_conf_computing.h"
+#include "gvm_debugfs.h"
 
 typedef enum
 {
@@ -50,6 +51,8 @@ typedef enum
     BLOCK_PTE_OP_REVOKE,
     BLOCK_PTE_OP_COUNT
 } block_pte_op_t;
+
+#define UVM_API_EVICT_BATCH_SIZE 256
 
 static NvU64 uvm_perf_authorized_cpu_fault_tracking_window_ns = 300000;
 
@@ -97,6 +100,109 @@ static size_t block_gpu_chunk_index(uvm_va_block_t *block,
                                     uvm_gpu_t *gpu,
                                     uvm_page_index_t page_index,
                                     uvm_chunk_size_t *out_chunk_size);
+
+static NV_STATUS block_evict_pages_from_gpu(uvm_va_block_t *va_block, uvm_gpu_t *gpu, struct mm_struct *mm, bool map);
+static size_t block_num_gpu_chunks(uvm_va_block_t *block, uvm_gpu_t *gpu);
+static void block_destroy_gpu_state(uvm_va_block_t *block, uvm_va_block_context_t *block_context, uvm_gpu_id_t id);
+
+static size_t uvm_va_space_evict_batch(struct mm_struct *mm,
+        uvm_va_space_t *va_space,
+        uvm_gpu_t *gpu,
+        uvm_va_range_managed_t *managed_range,
+        size_t va_range_block_start_index,
+        size_t num_block) {
+    size_t batch_index;
+    uvm_va_block_t *va_block;
+    size_t total_evicted_bytes = 0;
+    uvm_va_block_t *swapped_va_blocks[UVM_API_EVICT_BATCH_SIZE] = {NULL};
+
+    for (batch_index = 0; batch_index < num_block; ++batch_index) {
+        va_block = uvm_va_range_block(managed_range, va_range_block_start_index + batch_index);
+        if (va_block) {
+            uvm_mutex_lock(&va_block->lock);
+            if (uvm_va_block_gpu_state_get(va_block, gpu->id)) {
+                if (block_evict_pages_from_gpu(va_block, gpu, mm, false) == NV_OK) {
+                    swapped_va_blocks[batch_index] = va_block;
+                }
+            }
+            if (!swapped_va_blocks[batch_index])
+                uvm_mutex_unlock(&va_block->lock);
+        }
+    }
+
+    for (batch_index = 0; batch_index < num_block; ++batch_index) {
+        if (swapped_va_blocks[batch_index]) {
+            if (uvm_va_block_gpu_state_get(swapped_va_blocks[batch_index], gpu->id)) {
+                block_destroy_gpu_state(swapped_va_blocks[batch_index], uvm_va_space_block_context(va_space, NULL), gpu->id);
+                total_evicted_bytes += uvm_va_block_size(swapped_va_blocks[batch_index]);
+            }
+            uvm_mutex_unlock(&swapped_va_blocks[batch_index]->lock);
+        }
+    }
+
+    return total_evicted_bytes;
+}
+
+static NV_STATUS uvm_va_space_evict_size(uvm_va_space_t *va_space, uvm_gpu_t *gpu, size_t target_size) {
+    struct mm_struct *mm;
+    uvm_va_range_t *va_range;
+    uvm_va_range_managed_t *managed_range;
+    size_t va_range_num_blocks;
+    size_t block_index;
+    size_t total_evicted_bytes = 0;
+
+    uvm_assert_rwsem_locked_write(&va_space->lock);
+    mm = uvm_va_space_mm_retain_lock(va_space);
+
+    if (!mm)
+        return NV_ERR_INVALID_ARGUMENT;
+
+    uvm_for_each_va_range(va_range, va_space) {
+        managed_range = uvm_va_range_to_managed_or_null(va_range);
+        if (managed_range) {
+            va_range_num_blocks = uvm_va_range_num_blocks(managed_range);
+            for (block_index = 0; block_index < va_range_num_blocks; block_index += UVM_API_EVICT_BATCH_SIZE) {
+                total_evicted_bytes += uvm_va_space_evict_batch(mm, va_space, gpu, managed_range, block_index,
+                        (block_index + UVM_API_EVICT_BATCH_SIZE) > va_range_num_blocks ? (va_range_num_blocks - block_index) : UVM_API_EVICT_BATCH_SIZE);
+                if (total_evicted_bytes >= target_size)
+                    goto exit;
+            }
+        }
+    }
+
+exit:
+    uvm_va_space_mm_release_unlock(va_space, mm);
+    return NV_OK;
+}
+
+int uvm_debugfs_api_charge_gpu_memory_limit(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, size_t current_value, size_t limit_value) {
+    uvm_gpu_t *gpu = uvm_gpu_get(gpu_id);
+
+    if (!gpu)
+        return 0;
+
+    if (current_value <= limit_value)
+        return 0;
+
+    uvm_down_write(&va_space->lock);
+    uvm_va_space_evict_size(va_space, gpu, current_value - limit_value);
+    uvm_up_write(&va_space->lock);
+
+    return 0;
+}
+
+int uvm_try_charge_gpu_memory_cgroup(uvm_va_block_t *block, uvm_gpu_id_t gpu_id, size_t size, bool uncharge, bool swap) {
+    uvm_va_space_t *va_space;
+    if (!block)
+        return -EINVAL;
+
+    va_space = uvm_va_block_get_va_space_maybe_dead(block);
+    if (!va_space)
+        return -EINVAL;
+
+    return (uncharge) ? try_uncharge_gpu_memcg_debugfs(va_space, gpu_id, size, swap) :
+        try_charge_gpu_memcg_debugfs(va_space, gpu_id, size, swap);
+}
 
 uvm_va_space_t *uvm_va_block_get_va_space_maybe_dead(uvm_va_block_t *va_block)
 {
@@ -1902,6 +2008,8 @@ static NV_STATUS block_populate_pages_cpu(uvm_va_block_t *block,
     uvm_page_index_t page_index;
     uvm_gpu_id_t id;
     int preferred_nid = block_context->make_resident.dest_nid;
+    bool prefer_full_block_2m = false;
+    bool attempted_full_block_2m = false;
 
     if (block_test && block_test->cpu_chunk_allocation_target_id != NUMA_NO_NODE)
         preferred_nid = block_test->cpu_chunk_allocation_target_id;
@@ -1954,6 +2062,16 @@ static NV_STATUS block_populate_pages_cpu(uvm_va_block_t *block,
     UVM_ASSERT(cpu_allocation_sizes >= PAGE_SIZE);
     UVM_ASSERT(cpu_allocation_sizes & PAGE_SIZE);
 
+    if (!uvm_va_block_is_hmm(block) &&
+        uvm_va_block_size(block) == UVM_PAGE_SIZE_2M &&
+        populate_region.first == 0 &&
+        populate_region.outer == uvm_va_block_num_cpu_pages(block) &&
+        uvm_page_mask_region_full(populate_page_mask, populate_region) &&
+        uvm_page_mask_region_empty(allocated_mask, populate_region) &&
+        (cpu_allocation_sizes & UVM_PAGE_SIZE_2M)) {
+        prefer_full_block_2m = true;
+    }
+
     for_each_va_block_page_in_region_mask(page_index, populate_page_mask, populate_region) {
         uvm_cpu_chunk_alloc_flags_t chunk_alloc_flags = alloc_flags;
         uvm_va_block_region_t region = populate_region;
@@ -1966,13 +2084,22 @@ static NV_STATUS block_populate_pages_cpu(uvm_va_block_t *block,
             continue;
         }
 
+retry_allocation:
         allocation_sizes = block_calculate_largest_alloc_size(block,
                                                               page_index,
                                                               allocated_mask,
-                                                              cpu_allocation_sizes,
+                                                              prefer_full_block_2m && !attempted_full_block_2m ?
+                                                                  UVM_PAGE_SIZE_2M : cpu_allocation_sizes,
                                                               &region);
-        if (allocation_sizes == UVM_CHUNK_SIZE_INVALID)
+        if (allocation_sizes == UVM_CHUNK_SIZE_INVALID) {
+            if (prefer_full_block_2m && !attempted_full_block_2m) {
+                attempted_full_block_2m = true;
+                prefer_full_block_2m = false;
+                goto retry_allocation;
+            }
+
             return NV_ERR_NO_MEMORY;
+        }
 
         // If not all pages in the allocation region are resident somewhere,
         // zero out the allocated page.
@@ -1995,9 +2122,18 @@ static NV_STATUS block_populate_pages_cpu(uvm_va_block_t *block,
             preferred_nid = NUMA_NO_NODE;
             block_context->make_resident.dest_nid = NUMA_NO_NODE;
         }
+        else if (status == NV_ERR_NO_MEMORY && prefer_full_block_2m && !attempted_full_block_2m) {
+            attempted_full_block_2m = true;
+            prefer_full_block_2m = false;
+            goto retry_allocation;
+        }
         else if (status != NV_OK) {
             return status;
         }
+
+        if (prefer_full_block_2m && !attempted_full_block_2m)
+            attempted_full_block_2m = true;
+        prefer_full_block_2m = false;
 
         // A smaller chunk than the maximum size may have been allocated, update the region accordingly.
         region = uvm_va_block_chunk_region(block, uvm_cpu_chunk_get_size(chunk), page_index);
@@ -2064,7 +2200,13 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
                                        uvm_gpu_chunk_t **out_gpu_chunk)
 {
     NV_STATUS status = NV_OK;
+    uvm_va_space_t *va_space = uvm_va_block_get_va_space_maybe_dead(block);
+    uvm_pmm_alloc_flags_t evict_flags = UVM_PMM_ALLOC_FLAGS_EVICT;
+    struct task_struct *task = NULL;
     uvm_gpu_chunk_t *gpu_chunk;
+
+    if (va_space && va_space->va_space_mm.mm)
+        task = va_space->va_space_mm.mm->owner;
 
     // First try getting a free chunk from previously-made allocations.
     gpu_chunk = block_retry_get_free_chunk(retry, gpu, size);
@@ -2075,9 +2217,13 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
             --block_test->user_pages_allocation_retry_force_count;
             status = NV_ERR_NO_MEMORY;
         }
+        else if (va_space && get_gpu_memcg_current(va_space, gpu->id) > get_gpu_memcg_limit(va_space, gpu->id)) {
+            evict_flags |= UVM_PMM_ALLOC_FLAGS_EVICT_FORCE;
+            status = NV_ERR_NO_MEMORY;
+        }
         else {
             // Try allocating a new one without eviction
-            status = uvm_pmm_gpu_alloc_user(&gpu->pmm, 1, size, UVM_PMM_ALLOC_FLAGS_NONE, &gpu_chunk, &retry->tracker);
+            status = uvm_pmm_gpu_alloc_user_impl(&gpu->pmm, 1, size, UVM_PMM_ALLOC_FLAGS_NONE, (task) ? task->pid : 0, &gpu_chunk, &retry->tracker);
         }
 
         if (status == NV_ERR_NO_MEMORY) {
@@ -2086,22 +2232,25 @@ static NV_STATUS block_alloc_gpu_chunk(uvm_va_block_t *block,
             // be restarted.
             uvm_mutex_unlock(&block->lock);
 
-            status = uvm_pmm_gpu_alloc_user(&gpu->pmm, 1, size, UVM_PMM_ALLOC_FLAGS_EVICT, &gpu_chunk, &retry->tracker);
+            status = uvm_pmm_gpu_alloc_user_impl(&gpu->pmm, 1, size, evict_flags, (task) ? task->pid : 0, &gpu_chunk, &retry->tracker);
             if (status == NV_OK) {
                 block_retry_add_free_chunk(retry, gpu_chunk);
                 status = NV_ERR_MORE_PROCESSING_REQUIRED;
             }
 
             uvm_mutex_lock(&block->lock);
-            return status;
+            goto out;
         }
         else if (status != NV_OK) {
-            return status;
+            goto out;
         }
     }
 
     *out_gpu_chunk = gpu_chunk;
-    return NV_OK;
+out:
+    if (status == NV_OK)
+        uvm_try_charge_gpu_memory_cgroup(block, gpu->id, uvm_gpu_chunk_get_size(gpu_chunk), false, false);
+    return status;
 }
 
 static bool block_gpu_has_page_tables(uvm_va_block_t *block, uvm_gpu_t *gpu)
@@ -3562,7 +3711,7 @@ static void block_mark_memory_used(uvm_va_block_t *block, uvm_processor_id_t id)
         uvm_parent_gpu_supports_eviction(gpu->parent)) {
         // The chunk has to be there if this GPU is resident
         UVM_ASSERT(uvm_processor_mask_test(&block->resident, id));
-        uvm_pmm_gpu_mark_root_chunk_used(&gpu->pmm, uvm_va_block_gpu_state_get(block, gpu->id)->chunks[0]);
+        uvm_pmm_gpu_mark_root_chunk_used(&gpu->pmm, uvm_va_block_gpu_state_get(block, gpu->id)->chunks[0], block);
     }
 }
 
@@ -4012,7 +4161,7 @@ static NV_STATUS zero_destination_mem_if_needed(uvm_va_block_t *block,
          (uvm_parent_gpu_peer_link_type(src_gpu->parent, dst_gpu->parent) < UVM_GPU_LINK_NVLINK_5)) &&
         uvm_gpu_get_injected_nvlink_error(src_gpu) == NV_OK)
         return NV_OK;
-        
+
     for_each_va_block_page_in_region_mask(page_index, copy_mask, region) {
         block_phys_page_t dst_phys_page = block_phys_page(dst_id, NUMA_NO_NODE, page_index);
         uvm_gpu_chunk_t *dst_chunk = block_phys_page_chunk(block, dst_phys_page, NULL);
@@ -4504,6 +4653,8 @@ static NV_STATUS block_copy_resident_pages_mask(uvm_va_block_t *block,
                 if (status != NV_OK)
                     break;
             }
+            if (status == NV_OK && block_context->make_resident.cause == UVM_MAKE_RESIDENT_CAUSE_REPLAYABLE_FAULT && UVM_ID_IS_GPU(dst_id))
+                uvm_try_charge_gpu_memory_cgroup(block, dst_id, *copied_pages_out * PAGE_SIZE, true, true);
         }
         else {
             status = block_copy_resident_pages_from(block,
@@ -4518,7 +4669,8 @@ static NV_STATUS block_copy_resident_pages_mask(uvm_va_block_t *block,
                                                     migrated_pages,
                                                     copied_pages_out,
                                                     tracker_out);
-
+            if (status == NV_OK && block_context->make_resident.cause == UVM_MAKE_RESIDENT_CAUSE_EVICTION && UVM_ID_IS_CPU(dst_id))
+                uvm_try_charge_gpu_memory_cgroup(block, src_id, *copied_pages_out * PAGE_SIZE, false, true);
         }
 
         UVM_ASSERT(*copied_pages_out <= max_pages_to_copy);
@@ -9444,7 +9596,7 @@ void uvm_va_block_unmap_preferred_location_uvm_lite(uvm_va_block_t *va_block, uv
 //
 // Notably the caller needs to support allocation-retry as
 // uvm_va_block_migrate_locked() requires that.
-static NV_STATUS block_evict_pages_from_gpu(uvm_va_block_t *va_block, uvm_gpu_t *gpu, struct mm_struct *mm)
+static NV_STATUS block_evict_pages_from_gpu(uvm_va_block_t *va_block, uvm_gpu_t *gpu, struct mm_struct *mm, bool map)
 {
     NV_STATUS status = NV_OK;
     const uvm_page_mask_t *resident = uvm_va_block_resident_mask_get(va_block, gpu->id, NUMA_NO_NODE);
@@ -9467,7 +9619,8 @@ static NV_STATUS block_evict_pages_from_gpu(uvm_va_block_t *va_block, uvm_gpu_t 
                                                  service_context,
                                                  subregion,
                                                  UVM_ID_CPU,
-                                                 UVM_MIGRATE_MODE_MAKE_RESIDENT_AND_MAP,
+                                                 (map) ? UVM_MIGRATE_MODE_MAKE_RESIDENT_AND_MAP : UVM_MIGRATE_MODE_MAKE_RESIDENT,
+                                                 !map,
                                                  NULL);
         }
 
@@ -9504,7 +9657,7 @@ void uvm_va_block_unregister_gpu_locked(uvm_va_block_t *va_block, uvm_gpu_t *gpu
     // we don't rely on any state of the block across the call.
     // TODO: Bug 4494289: Prevent setting the global error on allocation
     // failures.
-    status = UVM_VA_BLOCK_RETRY_LOCKED(va_block, NULL, block_evict_pages_from_gpu(va_block, gpu, mm));
+    status = UVM_VA_BLOCK_RETRY_LOCKED(va_block, NULL, block_evict_pages_from_gpu(va_block, gpu, mm, true));
     if (status != NV_OK) {
         UVM_ERR_PRINT("Failed to evict GPU pages on GPU unregister: %s, GPU %s\n",
                       nvstatusToString(status),

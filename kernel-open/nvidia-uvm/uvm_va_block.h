@@ -674,6 +674,10 @@ static inline uvm_va_block_gpu_state_t *uvm_va_block_gpu_state_get(uvm_va_block_
     return va_block->gpus[uvm_id_gpu_index(gpu_id)];
 }
 
+int uvm_debugfs_api_charge_gpu_memory_limit(uvm_va_space_t *va_space, uvm_gpu_id_t gpu_id, size_t current_value, size_t limit_value);
+
+int uvm_try_charge_gpu_memory_cgroup(uvm_va_block_t *block, uvm_gpu_id_t gpu_id, size_t size, bool uncharge, bool swap);
+
 // Return the va_space pointer of the given block or NULL if the block is dead.
 // Locking: This can be called while holding either the block lock or just the
 // VA space lock in read mode, since it can only change when the VA space lock
@@ -1513,6 +1517,7 @@ NV_STATUS uvm_va_block_migrate_locked(uvm_va_block_t *va_block,
                                       uvm_va_block_region_t region,
                                       uvm_processor_id_t dest_id,
                                       uvm_migrate_mode_t mode,
+                                      NvBool eviction,
                                       uvm_tracker_t *out_tracker);
 
 // Write block's data from a CPU buffer
